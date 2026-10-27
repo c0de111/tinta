@@ -301,7 +301,9 @@ static bool historian_make_request(void) {
     return true;
 }
 
-static run_result_t hist_run(void) {
+static run_result_t hist_run(int page, int input) {
+    (void)page;
+    (void)input;
     s_last_run_error = RUN_OK;
     if (historian_make_request())
         return (run_result_t){.data = &historian_data};

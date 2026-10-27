@@ -5796,7 +5796,7 @@
 			(uuid "a585db97-f146-4f28-9ac4-e8782e71b037")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR013")
 					(unit 1)
@@ -5861,7 +5861,7 @@
 			(uuid "bafb8780-15a1-465f-9201-9c1ad05731c9")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR06")
 					(unit 1)
@@ -6146,7 +6146,7 @@
 			(uuid "e196375d-6c01-427e-9660-61b7579b5395")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR01")
 					(unit 1)
@@ -6567,7 +6567,7 @@
 			(uuid "88aae9d0-40c7-46cb-8d47-aba92e0848c6")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR03")
 					(unit 1)
@@ -6699,7 +6699,7 @@
 			(uuid "25db9406-efec-4bb5-b85c-b05904159637")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR08")
 					(unit 1)
@@ -6769,7 +6769,7 @@
 			(uuid "c34c0ebf-3480-44e0-895f-ad03ae358a8c")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "R19")
 					(unit 1)
@@ -6904,7 +6904,7 @@
 			(uuid "e0d0a5e3-42db-4af1-8bf6-e6e197edc728")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR05")
 					(unit 1)
@@ -6969,7 +6969,7 @@
 			(uuid "6f645269-cfef-4e93-b358-7caf76c378a3")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR014")
 					(unit 1)
@@ -7034,7 +7034,7 @@
 			(uuid "edf9f9a2-c208-4ee0-94e5-325e3c292341")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR04")
 					(unit 1)
@@ -7099,7 +7099,7 @@
 			(uuid "be36831f-759b-41f4-b86b-3dddcdab5380")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR010")
 					(unit 1)
@@ -7164,7 +7164,7 @@
 			(uuid "0f82d80e-0ebb-4911-958b-e4eb47ddf736")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR07")
 					(unit 1)
@@ -7297,7 +7297,7 @@
 			(uuid "aac65282-897f-4f32-b7a1-68f2f3615bdc")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR02")
 					(unit 1)
@@ -7432,7 +7432,7 @@
 			(uuid "fb25bf75-2112-45e2-826c-24318ddd29d3")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "R11")
 					(unit 1)
@@ -7567,7 +7567,7 @@
 			(uuid "84b3392c-b819-461c-88ce-24551f05b52a")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR012")
 					(unit 1)
@@ -7642,7 +7642,7 @@
 			(uuid "67aa8233-d071-4ce6-99b0-dd3519f61a34")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "Q4")
 					(unit 1)
@@ -7926,7 +7926,7 @@
 			(uuid "e5344631-5c49-4e3b-a356-016c4a8fe529")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "Q3")
 					(unit 1)
@@ -8076,7 +8076,7 @@
 			(uuid "70d37689-cb33-42f5-9327-f7de7adbe3c4")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR015")
 					(unit 1)
@@ -8290,7 +8290,7 @@
 			(uuid "756155db-96e8-491b-bad9-62a5a00d72e9")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "R21")
 					(unit 1)
@@ -8492,7 +8492,7 @@
 			(uuid "43d06f12-f95c-428b-8fef-4fc984a167ba")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "R22")
 					(unit 1)
@@ -8557,7 +8557,7 @@
 			(uuid "74803090-bd26-4fd1-aeff-6141292856c6")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR09")
 					(unit 1)
@@ -8622,7 +8622,7 @@
 			(uuid "eb048f9d-049f-48c6-bd1f-e796aa2ba82a")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "#PWR011")
 					(unit 1)
@@ -8767,7 +8767,7 @@
 			(uuid "b74e3408-ea4b-436a-9521-c80ddb784f08")
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(reference "C13")
 					(unit 1)
@@ -9204,7 +9204,7 @@
 			)
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(page "3")
 				)
@@ -9285,7 +9285,7 @@
 			)
 		)
 		(instances
-			(project "inki_l2"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c"
 					(page "2")
 				)

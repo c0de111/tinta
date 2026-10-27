@@ -64,6 +64,38 @@ static const layout_elem_t ss_office_42[] = {
     {ELEM_VAR, 40, 220, &font_ubuntu_mono_14pt, .var_index = 2},
 };
 
+// --- Device-mode claim page layout arrays: [0]=claim code [1]=device name ---
+
+static const layout_elem_t ss_claim_75[] = {
+    {ELEM_TEXT, 40, 40, &font_ubuntu_mono_20pt_bold, .text = "Seatsurfing setup"},
+    {ELEM_TEXT, 40, 120, &font_ubuntu_mono_14pt, .text = "Enter this code under"},
+    {ELEM_TEXT, 40, 160, &font_ubuntu_mono_14pt, .text = "Plus Features > Manage devices:"},
+    {ELEM_VAR, 232, 241, &font_ubuntu_mono_28pt_bold, .var_index = 0},
+    {ELEM_TEXT, 40, 345, &font_ubuntu_mono_14pt, .text = "Then press the left button."},
+    {ELEM_VAR, 40, 410, &font_ubuntu_mono_11pt, .var_index = 1},
+};
+
+static const layout_elem_t ss_claim_42[] = {
+    {ELEM_TEXT, 20, 20, &font_ubuntu_mono_11pt_bold, .text = "Seatsurfing setup"},
+    {ELEM_TEXT, 20, 70, &font_ubuntu_mono_9pt, .text = "Enter this code under"},
+    {ELEM_TEXT, 20, 96, &font_ubuntu_mono_9pt, .text = "Plus Features > Devices:"},
+    {ELEM_VAR, 64, 137, &font_ubuntu_mono_22pt_bold, .var_index = 0},
+    {ELEM_TEXT, 20, 205, &font_ubuntu_mono_9pt, .text = "Then press the left button."},
+    {ELEM_VAR, 20, 240, &font_ubuntu_mono_9pt, .var_index = 1},
+};
+
+void render_page_ss_claim(uint8_t *image_buffer, device_caps_t caps, const char *claim_code,
+                          const char *device_name) {
+    const char *vars[LAYOUT_MAX_VARS] = {claim_code, device_name};
+    if (caps.epaper_width >= 800)
+        epaper_render_layout(image_buffer, ss_claim_75,
+                             sizeof(ss_claim_75) / sizeof(ss_claim_75[0]), vars);
+    else
+        epaper_render_layout(image_buffer, ss_claim_42,
+                             sizeof(ss_claim_42) / sizeof(ss_claim_42[0]), vars);
+    epaper_draw_firmware_info();
+}
+
 void render_page_seatsurfing(uint8_t *image_buffer) {
 
     const layout_elem_t *layout = NULL;

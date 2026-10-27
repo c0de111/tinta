@@ -27,10 +27,15 @@ uint8_t *epaper_init(bool is_4gray) {
 
     watchdog_update();
 
-    // Initialize the hardware module for the ePaper
-    if (DEV_Module_Init() != 0) {
-        dlog("Error initializing ePaper hardware module.\n");
-        return NULL;
+    // Once per run: DEV_Module_Init() also runs stdio_init_all(), and a second USB stdio init
+    // while the first is live claims its IRQs again. Pins and SPI stay set up, the exit is empty.
+    static bool module_ready;
+    if (!module_ready) {
+        if (DEV_Module_Init() != 0) {
+            dlog("Error initializing ePaper hardware module.\n");
+            return NULL;
+        }
+        module_ready = true;
     }
 
     dtrace("Disabling watchdog for ePaper setup...\n");

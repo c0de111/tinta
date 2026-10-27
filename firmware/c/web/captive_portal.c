@@ -1,6 +1,8 @@
 #include "captive_portal.h"
+#include "debug.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -31,6 +33,58 @@ static const uint8_t s_dhcp_ack[] = {
     168,  4,    1,    6,    4,    192,  168,  4,    1,        15,        4,         'i',       'n',
     'k',  'i',  119,  5,    4,    'i',  'n',  'k',  'i',      0,         255};
 
+// Each device keeps its own address, 192.168.4.100 to .109, for as long as the setup runs.
+// More than ten devices reuse the oldest addresses.
+#define DHCP_FIRST_HOST 100
+#define DHCP_HOSTS 10
+static uint8_t s_lease_mac[DHCP_HOSTS][6];
+static int s_leases_given;
+
+static uint8_t dhcp_host_for(const uint8_t *mac) {
+    const int known = s_leases_given < DHCP_HOSTS ? s_leases_given : DHCP_HOSTS;
+    for (int i = 0; i < known; i++)
+        if (memcmp(s_lease_mac[i], mac, 6) == 0)
+            return (uint8_t)(DHCP_FIRST_HOST + i);
+    const int i = s_leases_given++ % DHCP_HOSTS;
+    memcpy(s_lease_mac[i], mac, 6);
+    return (uint8_t)(DHCP_FIRST_HOST + i);
+}
+
+static char s_client_name[33];
+static bool s_client_known;
+
+const char *captive_client_name(void) { return s_client_known ? s_client_name : NULL; }
+void captive_forget_client(void) { s_client_known = false; }
+
+// Walks the options after the magic cookie. Returns the message type (option 53) and copies
+// the host name (option 12) into name, keeping printable ASCII only.
+static uint8_t dhcp_read_options(const uint8_t *pkt, size_t len, char *name, size_t name_size) {
+    uint8_t msg_type = 0;
+    name[0] = '\0';
+    size_t i = 240;
+    while (i < len) {
+        const uint8_t code = pkt[i++];
+        if (code == 0)
+            continue;
+        if (code == 255 || i >= len)
+            break;
+        const uint8_t olen = pkt[i++];
+        if (i + olen > len)
+            break;
+        if (code == 53 && olen == 1) {
+            msg_type = pkt[i];
+        } else if (code == 12) {
+            size_t n = 0;
+            for (uint8_t k = 0; k < olen && n + 1 < name_size; k++)
+                if (pkt[i + k] >= 0x20 && pkt[i + k] <= 0x7e)
+                    name[n++] = (char)pkt[i + k];
+            name[n] = '\0';
+        }
+        i += olen;
+    }
+    return msg_type;
+}
+
 static void captive_dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr,
                               u16_t port) {
     if (!p || p->len < 240) {
@@ -39,13 +93,8 @@ static void captive_dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, co
         return;
     }
     const uint8_t *req = (const uint8_t *)p->payload;
-    uint8_t msg_type = 0;
-    for (int i = 240; i < (int)p->len - 2; i++) {
-        if (req[i] == 53 && req[i + 1] == 1) {
-            msg_type = req[i + 2];
-            break;
-        }
-    }
+    char name[sizeof(s_client_name)];
+    const uint8_t msg_type = dhcp_read_options(req, p->len, name, sizeof(name));
     const uint8_t *tmpl = NULL;
     size_t tmpl_len = 0;
     if (msg_type == 1) {
@@ -54,6 +103,13 @@ static void captive_dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, co
     } else if (msg_type == 3) {
         tmpl = s_dhcp_ack;
         tmpl_len = sizeof(s_dhcp_ack);
+        const uint8_t *mac = req + 28;
+        if (!s_client_known || strcmp(name, s_client_name) != 0)
+            debug_status("OK", "DHCP: \"%s\" (%02X:%02X:%02X:%02X:%02X:%02X) joined as .%u\n",
+                         name[0] ? name : "no name", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                         dhcp_host_for(mac));
+        memcpy(s_client_name, name, sizeof(s_client_name));
+        s_client_known = true;
     } else {
         pbuf_free(p);
         return;
@@ -62,6 +118,7 @@ static void captive_dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, co
     memcpy(resp, tmpl, tmpl_len);
     memcpy(resp + 4, req + 4, 4);
     memcpy(resp + 28, req + 28, 16);
+    resp[19] = dhcp_host_for(req + 28); // yiaddr, last byte
     struct pbuf *rb = pbuf_alloc(PBUF_TRANSPORT, (u16_t)tmpl_len, PBUF_RAM);
     if (!rb) {
         pbuf_free(p);

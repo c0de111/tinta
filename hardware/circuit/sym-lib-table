@@ -3,5 +3,4 @@
   (lib (name "BMP581")(type "KiCad")(uri "${KIPRJMOD}/../libs/BMP581.kicad_sym")(options "")(descr ""))
   (lib (name "JZ400")(type "KiCad")(uri "${KIPRJMOD}/project-libraries/JZ400.kicad_sym")(options "")(descr "Knowles JZ400 trimmer capacitor"))
   (lib (name "ST25DV04KC-IE6S3")(type "KiCad")(uri "${KIPRJMOD}/project-libraries/ST25DV04KC-IE6S3.kicad_sym")(options "")(descr "ST25DV04KC NFC tag"))
-  (lib (name "GDEY042T81")(type "KiCad")(uri "${KIPRJMOD}/project-libraries/GDEY042T81.kicad_sym")(options "")(descr "4.2in ePaper panel SSD1683 24-pin FPC"))
 )

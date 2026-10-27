@@ -44,12 +44,12 @@ Manual user interaction:
 
 <table>
 <tr>
-  <td style="padding: 20px;"><img src="images/inki_board.png" alt="inki board - for details use KiCAD" width="300"></td>
-  <td style="padding: 20px;"><img src="images/inki_schematic.png" alt="schematic - for details use KiCAD" width="500"></td>
+  <td style="padding: 20px;"><img src="images/tinta_board.png" alt="Tinta board - for details use KiCAD" width="300"></td>
+  <td style="padding: 20px;"><img src="images/tinta_schematic.png" alt="schematic - for details use KiCAD" width="500"></td>
 </tr>
 <tr>
   <td align="center" style="padding: 20px;"><em>Tinta board – for details use KiCAD</em></td>
-  <td align="center" style="padding: 20px;"><em>schematic – <a href="inki_l2.pdf">PDF</a> · for details use KiCAD</em></td>
+  <td align="center" style="padding: 20px;"><em>schematic – <a href="tinta_l2.pdf">PDF</a> · for details use KiCAD</em></td>
 </tr>
 </table>
 
@@ -201,10 +201,10 @@ board is.
 
 ## Files
 
-- `inki_l2.pdf` — schematic PDF (no KiCad required)
-- `inki_l2.kicad_sch` — main schematic
-- `inki_l2.kicad_pcb` — PCB layout
-- `inki_l2_BOM.csv` — bill of materials
+- `tinta_l2.pdf` — schematic PDF (no KiCad required)
+- `tinta_l2.kicad_sch` — main schematic
+- `tinta_l2.kicad_pcb` — PCB layout
+- `tinta_l2_BOM.csv` — bill of materials
 - `wake_sources.kicad_sch` — wake circuit sub-schematic
 - `optional_i2c_device.kicad_sch` — optional I2C device sub-schematic
 - `power_consumption_estimate.py` — battery lifetime model (edit parameters, run)

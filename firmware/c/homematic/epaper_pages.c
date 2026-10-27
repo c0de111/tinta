@@ -154,5 +154,5 @@ void render_page_homematic(uint8_t *image_buffer) {
 }
 
 void render_page_homematic_placeholder(uint8_t *image_buffer) {
-    render_page_placeholder(image_buffer, "inki-homematic");
+    render_page_placeholder(image_buffer, "tinta-homematic");
 }

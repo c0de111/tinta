@@ -24,6 +24,7 @@
 
 #include "webserver.h"
 #define LOG_MODULE LOG_MOD_WEBSERVER
+#include "boot_input.h"
 #include "captive_portal.h"
 #include "debug.h"
 #include "epaper.h"
@@ -36,13 +37,16 @@
 #include "led.h"
 #include "lwip/tcp.h"
 #include "morse.h"
+#include "nfc_ndef.h"
 #include "ota.h"
+#include "pico/cyw43_arch.h"
 #include "pico/flash.h"
 #include "pico/time.h"
 #include "power.h"
 #include "rtc.h"
 #include "sensors.h"
 #include "use_case.h"
+#include "version.h"
 #include "web_clock.h"
 #include "web_device_settings.h"
 #include "web_export_settings.h"
@@ -140,6 +144,7 @@ static void send_response_with_content_type_and_disposition(struct tcp_pcb *tpcb
             "Content-Type: %s\r\n"
             "Content-Disposition: %s\r\n"
             "Content-Length: %zu\r\n"
+            "Cache-Control: no-store\r\n"
             "Connection: close\r\n\r\n",
             (content_type && content_type[0] != '\0') ? content_type : "text/html; charset=UTF-8",
             content_disposition, body_len);
@@ -149,6 +154,7 @@ static void send_response_with_content_type_and_disposition(struct tcp_pcb *tpcb
             "HTTP/1.0 200 OK\r\n"
             "Content-Type: %s\r\n"
             "Content-Length: %zu\r\n"
+            "Cache-Control: no-store\r\n"
             "Connection: close\r\n\r\n",
             (content_type && content_type[0] != '\0') ? content_type : "text/html; charset=UTF-8",
             body_len);
@@ -576,8 +582,34 @@ static const route_t *find_route(const char *path, http_method_t method) {
  * ├── Continuation: binary upload chunks → ota_stage_data()
  * └── Continuation: form upload chunks → process_form_upload_chunk()
  */
+// Setup mode leads through two steps on the panel (see setup_screen_tick). Two facts tie the
+// panel to the web server:
+// - Once a web request has been seen, the panel is not touched again until setup ends.
+// - While the panel refreshes, which blocks the main loop for seconds, no upload may start.
+// Together they keep a refresh and an upload from ever sharing the sign.
+static volatile bool s_request_seen;
+static volatile bool s_screen_busy;
+
 static err_t recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+    // There is one upload session for the whole server. While it is in use, a second
+    // connection (a phone probing for internet access, a browser fetching an icon) must not
+    // be read as more data of the upload: it is turned away.
+    static const struct tcp_pcb *session_pcb;
+    const bool session_in_use =
+        upload_session.active || upload_session.header_complete || upload_session.header_length > 0;
     if (!p) {
+        if (tpcb == session_pcb && !upload_session.active) {
+            upload_session.header_complete = false;
+            upload_session.header_length = 0;
+        }
+        tcp_close(tpcb);
+        return ERR_OK;
+    }
+    if (!session_in_use) {
+        session_pcb = tpcb;
+    } else if (tpcb != session_pcb) {
+        tcp_recved(tpcb, p->tot_len);
+        pbuf_free(p);
         tcp_close(tpcb);
         return ERR_OK;
     }
@@ -638,6 +670,21 @@ static err_t recv_cb(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
         http_method_t method = (strcmp(method_str, "GET") == 0)    ? HTTP_GET
                                : (strcmp(method_str, "POST") == 0) ? HTTP_POST
                                                                    : -1;
+        dlog("Web: %s %s\n", method_str, path_str);
+        if (!s_request_seen) {
+            s_request_seen = true;
+            debug_status("OK", "Setup: first web request, the display stays as it is\n");
+        }
+        if (method == HTTP_POST && s_screen_busy) {
+            // Nothing may be stored while the panel refreshes: turn the request away whole,
+            // including the body that is still on its way.
+            dlog("Web: display is refreshing, %s turned away\n", path_str);
+            send_response(tpcb, "<p>Tinta is refreshing its display. Try again in a moment.</p>");
+            cleanup_and_return(tpcb, p, copied);
+            tcp_recv(tpcb, NULL);
+            tcp_close(tpcb);
+            return ERR_OK;
+        }
         if (method == (http_method_t)-1) {
             dlog("Unsupported method: %s\n", method_str);
             cleanup_and_return(tpcb, p, copied);
@@ -749,6 +796,114 @@ static void start_setup_webserver(void) {
 }
 
 // =============================================================================
+// SETUP SCREEN
+// =============================================================================
+
+typedef struct {
+    bool open_shown;        // the panel shows step 2 (open the settings page), not step 1 (join)
+    absolute_time_t t_poll; // next look at who has joined
+    absolute_time_t t_left; // since when nobody is joined, while step 2 is shown
+} setup_screen_t;
+
+#define SETUP_SCREEN_POLL_MS 1000
+#define SETUP_SCREEN_BACK_MS 10000 // step 2 without anyone joined, before step 1 returns
+
+// Draws a setup page unless the web server is in use. The check and the claim happen under
+// the lwIP lock, so no request can slip in between them.
+static bool setup_screen_show(bool open) {
+    cyw43_arch_lwip_begin();
+    const bool server_idle = !s_request_seen && ota_is_idle() && !upload_session.active &&
+                             !upload_session.header_complete && upload_session.header_length == 0;
+    if (server_idle)
+        s_screen_busy = true;
+    cyw43_arch_lwip_end();
+    if (!server_idle)
+        return false;
+
+    uint8_t *image = epaper_init(false);
+    if (image) {
+        if (open)
+            render_page_setup_open(image, captive_client_name());
+        else
+            render_page_setup_join(image);
+        epaper_flush_and_sleep(image);
+    }
+    s_screen_busy = false;
+    return true;
+}
+
+// The LED keeps pace with the panel: the Morse message runs twice as fast once a device has
+// joined, so the step can be seen from across the room too.
+static void setup_led_step(bool open) {
+#if LED_MORSE_ENABLED
+    morse_set_unit_ms(open ? LED_MORSE_UNIT_MS / 2 : LED_MORSE_UNIT_MS);
+#else
+    (void)open;
+#endif
+}
+
+// Step 1 until a device has an address, then step 2; back to step 1 if it leaves without ever
+// asking for a page. From the first web request on the panel stays as it is. Joining alone is
+// no proof: a phone with the wrong password is listed until its handshake fails, but only one
+// with the right password can ask for an address.
+static void setup_screen_tick(setup_screen_t *s) {
+    if (s_request_seen || !time_reached(s->t_poll))
+        return;
+    s->t_poll = make_timeout_time_ms(SETUP_SCREEN_POLL_MS);
+
+    const bool joined = wifi_ap_client_count() > 0;
+    if (!s->open_shown) {
+        if (!joined || !captive_client_name())
+            return;
+        if (!setup_screen_show(true))
+            return;
+        s->open_shown = true;
+        s->t_left = at_the_end_of_time;
+        setup_led_step(true);
+        debug_status("OK", "Setup: device joined, showing how to open the settings page\n");
+        // The tag now leads to the settings page too. The next normal run puts the address
+        // of its page back (nfc_ndef_offer_url).
+        if (nfc_ndef_set_url(SETUP_PAGE_URL) == NFC_NDEF_FAILED)
+            debug_status("INFO", "Setup: settings address not written to the tag\n");
+    } else if (joined) {
+        s->t_left = at_the_end_of_time;
+    } else if (is_at_the_end_of_time(s->t_left)) {
+        s->t_left = make_timeout_time_ms(SETUP_SCREEN_BACK_MS);
+    } else if (time_reached(s->t_left) && setup_screen_show(false)) {
+        s->open_shown = false;
+        setup_led_step(false);
+        captive_forget_client();
+        debug_status("INFO", "Setup: device left, showing how to join again\n");
+    }
+}
+
+// =============================================================================
+// LEAVING SETUP BY BUTTON
+// =============================================================================
+
+// Any button ends the setup, as the timeout does. The button that started it counts only
+// once it has been let go, and nothing happens while an upload is being stored.
+typedef struct {
+    bool released; // all buttons have been up once since setup began
+    int held;      // consecutive loop passes with a button down
+} setup_exit_t;
+
+#define SETUP_EXIT_HELD_PASSES 2 // about 100 ms at the loop's 50 ms pace
+
+static bool setup_exit_requested(setup_exit_t *e, bool upload_running) {
+    const bool down = any_button_down();
+    if (!e->released) {
+        e->released = !down;
+        return false;
+    }
+    if (!down || upload_running) {
+        e->held = 0;
+        return false;
+    }
+    return ++e->held >= SETUP_EXIT_HELD_PASSES;
+}
+
+// =============================================================================
 // webserver_run() — setup mode event loop
 // Caller must have called wifi_ap_start() before this.
 // Returns when the setup timeout expires; caller handles shutdown.
@@ -761,20 +916,16 @@ void webserver_run(void) {
     led_set_enabled(true);
     rtc_disable_alarm();
 
-    float battery_voltage = read_battery_voltage(device_config_flash.data.conversion_factor);
-    epaper_set_battery_voltage(battery_voltage);
+    read_boot_battery_voltage(device_config_flash.data.conversion_factor);
     uint8_t *setup_image = epaper_init(false);
     if (setup_image != NULL) {
-        render_page_wifi_setup(setup_image);
+        render_page_setup_join(setup_image);
         epaper_flush_and_sleep(setup_image);
     }
 
     debug_info("WiFi setup mode: initializing...\n");
 
-    static const char *ssid = "inki-setup";
-    static const char *password = "12345678";
-
-    if (!wifi_ap_start(ssid, password)) {
+    if (!wifi_ap_start()) {
         debug_flush();
         power_shutdown_default();
     }
@@ -786,11 +937,18 @@ void webserver_run(void) {
     captive_start_dhcp();
     captive_start_dns();
 
-    debug_status("OK", "AP active: SSID=%s  IP=192.168.4.1\n", ssid);
+    // Without a panel this line is the only place the password shows up.
+    debug_status("OK", "AP active: SSID=%s  password=%s  IP=192.168.4.1\n", wifi_setup_ssid(),
+                 wifi_setup_password());
+    // The boot lines went out before a terminal could attach: repeat what is running.
+    debug_status("OK", "Firmware: %s %s\n", program_name, version);
+    flash_log_status();
+    if (!wifi_has_network())
+        debug_status("INFO", "Setup: no home network stored, every wake starts setup\n");
 
 #if LED_MORSE_ENABLED
     morse_set_unit_ms(LED_MORSE_UNIT_MS);
-    morse_set_message("INKI");
+    morse_set_message("TINTA");
     morse_set_enabled(true);
 #else
 #if LED_USE_EXT
@@ -800,6 +958,10 @@ void webserver_run(void) {
 
     absolute_time_t t_watchdog = get_absolute_time();
     bool led_upload_active = false;
+    setup_screen_t screen = {.t_poll = get_absolute_time(), .t_left = at_the_end_of_time};
+    captive_forget_client();
+    s_request_seen = false;
+    setup_exit_t exit_by_button = {0};
 
     while (true) {
         bool ota_active = !ota_is_idle();
@@ -807,6 +969,7 @@ void webserver_run(void) {
         wifi_poll();
 
         webserver_ota_tick();
+        setup_screen_tick(&screen);
 
         // LED: solid during OTA upload, Morse otherwise
 #if LED_MORSE_ENABLED
@@ -838,6 +1001,12 @@ void webserver_run(void) {
         if (absolute_time_diff_us(get_absolute_time(), t_watchdog) < -2000000) {
             watchdog_update();
             t_watchdog = get_absolute_time();
+        }
+
+        if (setup_exit_requested(&exit_by_button, ota_active || upload_session.active)) {
+            debug_status("OK", "Setup: button pressed, leaving setup\n");
+            wifi_deinit();
+            return;
         }
 
         // Shutdown timeout

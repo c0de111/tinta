@@ -121,6 +121,8 @@ inki-monitor/*.pyc
 # FreeCAD autosave backups
 *.FCBak
 
+# Local tool state
+
 # CMake build output accidentally committed in the past
 **/CMakeFiles/
 
@@ -136,3 +138,6 @@ Thumbs.db
 __pycache__/
 *.pyc
 .venv/
+
+# Tracer bullets: local server addresses, passwords and tokens
+firmware/c/*/tracer_config.h

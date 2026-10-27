@@ -18,6 +18,15 @@ float read_battery_voltage(float conversion_factor) {
     return voltage;
 }
 
+static float s_boot_battery_voltage = 0.0f;
+
+float read_boot_battery_voltage(float conversion_factor) {
+    s_boot_battery_voltage = read_battery_voltage(conversion_factor);
+    return s_boot_battery_voltage;
+}
+
+float boot_battery_voltage(void) { return s_boot_battery_voltage; }
+
 float read_coin_cell_voltage(float conversion_factor) {
     const uint gpio_mosfet = 14;
 

@@ -6,6 +6,7 @@
 #include "device_config.h"
 #include "epaper_layout.h"
 #include "flash.h"
+#include "sensors.h"
 #include "version.h"
 #include <stdio.h>
 #include <string.h>
@@ -68,6 +69,7 @@ void epaper_draw_toggle(int x, int y, const sFONT *font, bool is_on) {
     const char *txt = is_on ? "an" : "aus";
     int text_px = (int)strlen(txt) * font->Width;
     int r = r_track - 3;
+    // cppcheck-suppress knownConditionTrueFalse
     if (r < 4)
         r = 4;
     int straight_len = text_px + 2 * (r + 4);
@@ -161,16 +163,11 @@ bool epaper_draw_custom_logo(uint8_t *buffer, int x, int y) {
     return true;
 }
 
-static float s_battery_voltage = 0.0f;
-
-void epaper_set_battery_voltage(float v) { s_battery_voltage = v; }
-float epaper_get_battery_voltage(void) { return s_battery_voltage; }
-
 void epaper_draw_firmware_info(void) {
     char buffer[128];
 
     snprintf(buffer, sizeof(buffer), "%s %s %s, U=%.2fV", program_name, version, build_date,
-             s_battery_voltage);
+             boot_battery_voltage());
 
     sFONT *font;
     int y;

@@ -5,6 +5,7 @@
 #include "webserver.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // --- Page definition ---
 
@@ -12,6 +13,9 @@ typedef struct page_def {
     const char *name;
     page_renderer_t render;
     bool needs_wifi;
+    // The page stays: once shown, scheduled wakes redraw it until another staying page is
+    // chosen. Pages without it are shown once and give way to the staying one again.
+    bool stays;
 } page_def_t;
 
 // --- Input mapping ---
@@ -19,6 +23,9 @@ typedef struct page_def {
 // Source namespaces: buttons 0-7, NFC opcodes 0x100+, future web commands 0x200+
 #define INPUT_BUTTON(n) (n)
 #define INPUT_NFC(op) (0x100 | (op))
+// A phone read the tag's web address and wrote nothing. main.c turns this into the page that
+// stays on the panel; the input_map entry is the fallback when none is stored.
+#define INPUT_NFC_READ 0x300
 
 // Sentinel / special values
 #define PAGE_ACTION_SETUP (-1)
@@ -28,6 +35,7 @@ typedef struct page_def {
 #define PAGE_AUTH_ERROR (-5)
 #define PAGE_HTTP_ERROR (-6)
 #define PAGE_PARSE_ERROR (-7)
+#define PAGE_TRACKER_ERROR (-8) // series unreachable — a different server than the rest
 
 // run_error_t: use-case-internal error classification (private to each client.c).
 // Defined here as a shared enum so all use cases speak the same vocabulary.
@@ -63,9 +71,20 @@ typedef struct {
 
     // Lifecycle: use case owns data fetch and render.
     // run() returns {data, error_page}: data != NULL on success, error_page set on failure.
-    run_result_t (*run)(void);
+    // page: the page to fetch for. input: the wake source behind it (INPUT_BUTTON/INPUT_NFC),
+    // for pages where two sources mean different things.
+    run_result_t (*run)(int page, int input);
     void (*render)(uint8_t *image, device_caps_t caps, int page, const void *data);
     void (*free_data)(void *data);
+
+    // Optional: the web address that belongs to a page, or NULL for none. main.c keeps the
+    // NFC tag offering the address of the page on the panel, so a phone held to the sign
+    // opens it without an app. Must not fetch or write anything.
+    const char *(*page_url)(int page);
+
+    // Optional: seconds until the next wake, given run()'s data (NULL if run() did not run).
+    // 0 or a NULL pointer leaves the device's own refresh interval in charge.
+    uint32_t (*next_wake_s)(const void *data);
 
     // Setup webserver: use-case config page and form handler.
     // render_config_page: write HTML form into buf; msg is flash feedback ("" on first load).
@@ -96,4 +115,18 @@ static inline int resolve_page_index(int source) {
         }
     }
     return use_case.default_page;
+}
+
+// The catalog entry of a page index, or NULL for a sentinel or an index past the catalog.
+static inline const page_def_t *use_case_page(int page) {
+    for (int i = 0; page >= 0 && i <= page; i++) {
+        if (!use_case.pages[i])
+            return NULL;
+    }
+    return page >= 0 ? use_case.pages[page] : NULL;
+}
+
+static inline bool use_case_page_needs_wifi(int page) {
+    const page_def_t *def = use_case_page(page);
+    return def && def->needs_wifi;
 }

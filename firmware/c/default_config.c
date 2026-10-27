@@ -24,8 +24,12 @@
 #endif
 
 __attribute__((section(".wifi_config"))) __attribute__((used))
-const wifi_config_t default_wifi_config = {
-    .ssid = "default_ssid", .password = "default_password", .crc32 = 0};
+const wifi_config_t default_wifi_config = {.ssid = WIFI_SSID_UNSET,
+                                           .password = "default_password",
+                                           .crc32 = 0,
+                                           .region = WIFI_REGION_WORLDWIDE,
+                                           .region_check =
+                                               WIFI_REGION_WORLDWIDE ^ WIFI_REGION_CHECK};
 
 #ifdef USE_CASE_SEATSURFING
 // Seatsurfing Konfiguration

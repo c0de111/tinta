@@ -37,7 +37,7 @@
 // Default fallback if no build-time define is provided
 #if !defined(USE_CASE_SEATSURFING) && !defined(USE_CASE_HISTORIAN) &&                              \
     !defined(USE_CASE_HOMEMATIC) && !defined(USE_CASE_WEATHERMAP) &&                               \
-    !defined(USE_CASE_NEW_USECASE)
+    !defined(USE_CASE_NEW_USECASE) && !defined(USE_CASE_NEXTCLOUD)
 #define USE_CASE_SEATSURFING // Default fallback
 #endif
 
@@ -47,6 +47,8 @@
 #define USE_CASE_ID_HOMEMATIC 3
 #define USE_CASE_ID_WEATHERMAP 4
 #define USE_CASE_ID_NEW_USECASE 5
+// 6 is taken twice on other branches (home-assistant, roomvox)
+#define USE_CASE_ID_NEXTCLOUD 7
 
 // Validate use case selection: exactly one must be defined
 #if defined(USE_CASE_SEATSURFING)
@@ -73,12 +75,15 @@
 #elif defined(USE_CASE_WEATHERMAP)
 #define USE_CASE_NAME "Weathermap"
 #define USE_CASE_ID USE_CASE_ID_WEATHERMAP
+#elif defined(USE_CASE_NEXTCLOUD)
+#define USE_CASE_NAME "Nextcloud"
+#define USE_CASE_ID USE_CASE_ID_NEXTCLOUD
 #elif defined(USE_CASE_NEW_USECASE)
 #define USE_CASE_NAME "NewUseCase"
 #define USE_CASE_ID USE_CASE_ID_NEW_USECASE
 #else
 #error                                                                                             \
-    "No use case defined! Define USE_CASE_SEATSURFING, USE_CASE_HISTORIAN, USE_CASE_HOMEMATIC, USE_CASE_WEATHERMAP, or USE_CASE_NEW_USECASE."
+    "No use case defined! Define USE_CASE_SEATSURFING, USE_CASE_HISTORIAN, USE_CASE_HOMEMATIC, USE_CASE_WEATHERMAP, USE_CASE_NEXTCLOUD, or USE_CASE_NEW_USECASE."
 #endif
 
 #define WIFI_SETUP_TIMEOUT_MS (15 * 60 * 1000)
@@ -92,6 +97,11 @@
 
 #ifndef INKI_DEBUG_TLS_CB
 #define INKI_DEBUG_TLS_CB 0
+#endif
+
+// Per-wake timing lines ([TIMING] ...) for DNS, TLS and HTTP, and alternating WiFi power save.
+#ifndef INKI_DEBUG_TIMING
+#define INKI_DEBUG_TIMING 0
 #endif
 
 // -----------------------------------------------------------------------------

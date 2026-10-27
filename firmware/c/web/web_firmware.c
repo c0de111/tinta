@@ -23,6 +23,8 @@ static const char *fw_use_case_name_from_id(uint8_t use_case_id) {
         return "Homematic";
     case USE_CASE_ID_WEATHERMAP:
         return "Weathermap";
+    case USE_CASE_ID_NEXTCLOUD:
+        return "Nextcloud";
     case USE_CASE_ID_NEW_USECASE:
         return "NewUseCase";
     default:
@@ -256,11 +258,37 @@ void build_firmware_update_page(char *buf, size_t sz, const char *message) {
         "<button type=\"submit\" class=\"demote-btn\">Demote active slot priority</button>"
         "</form></div>");
 
+    // The page picks the image for the slot that is not running: from a container (.tfw, both
+    // slots behind "TINTAFW1", see build.sh) it cuts out that one, a single .bin must already
+    // be the right one. The sign checks the image again after the transfer.
+    const int target_slot = strncmp(get_active_firmware_slot_info(), "SLOT_0", 6) == 0 ? 1 : 0;
+    n += snprintf(buf + n, sz - (size_t)n, "<script>const TARGET=%d,RUNNING='%s';", target_slot,
+                  USE_CASE_NAME);
+    n += snprintf(
+        buf + n, sz - (size_t)n,
+        "var sel=null;"
+        "function hdr(b,o){var d=new DataView(b);"
+        "var t=function(a,l){var s='';for(var i=0;i<l;i++){var c=d.getUint8(o+a+i);"
+        "if(!c)break;s+=String.fromCharCode(c);}return s;};"
+        "return{magic:t(0,13),ver:t(30,32),size:d.getUint32(o+62,true),"
+        "slot:d.getUint8(o+66),uc:t(73,24)};}"
+        "function pick(f){var m=document.getElementById('fwFileName');sel=null;"
+        "m.textContent=f.name;"
+        "f.arrayBuffer().then(function(b){var h=null,o=0;"
+        "var head=String.fromCharCode.apply(null,new Uint8Array(b,0,Math.min(8,b.byteLength)));"
+        "if(head==='TINTAFW1'){o=8;while(o+256<=b.byteLength){var x=hdr(b,o);"
+        "if(x.magic!=='inki_firmware'||x.size<256)break;"
+        "if(x.slot===TARGET){h=x;sel=f.slice(o,o+x.size);break;}o+=x.size;}}"
+        "else if(b.byteLength>=256){var x=hdr(b,0);"
+        "if(x.magic==='inki_firmware'&&x.slot===TARGET){h=x;sel=f;}}"
+        "if(!sel){m.textContent=f.name+': no firmware for slot '+TARGET+' in this file.';"
+        "return;}"
+        "m.textContent=f.name+': writes '+h.ver+' ('+h.uc+') to slot '+TARGET+"
+        "(h.uc!==RUNNING?' \u2014 other use case, its settings will be reset':'');});}");
     n += snprintf(buf + n, sz - (size_t)n,
-                  "<script>"
                   "const MAX_SIZE=%d;"
                   "function upload(){"
-                  "const file=document.getElementById('fileInput').files[0];"
+                  "const file=sel;"
                   "if(!file)return;"
                   "if(file.size>MAX_SIZE){"
                   "document.getElementById('status').innerText="
@@ -268,6 +296,7 @@ void build_firmware_update_page(char *buf, size_t sz, const char *message) {
                   "const xhr=new XMLHttpRequest();"
                   "xhr.open('POST','/firmware_update',true);"
                   "xhr.setRequestHeader('Content-Type','application/octet-stream');"
+                  "xhr.setRequestHeader('X-Tinta-Slot',String(TARGET));"
                   "xhr.responseType='text';"
                   "document.getElementById('spinner').classList.add('active');"
                   "document.getElementById('status').innerText="
@@ -282,9 +311,9 @@ void build_firmware_update_page(char *buf, size_t sz, const char *message) {
                   "document.getElementById('uploadResult').innerHTML=xhr.responseText;};"
                   "xhr.send(file);}"
                   "document.getElementById('fileInput').addEventListener('change',function(){"
-                  "var fn=document.getElementById('fwFileName');"
-                  "var f=this.files&&this.files[0];"
-                  "if(fn)fn.textContent=f?f.name:'No file selected.';});"
+                  "var f=this.files&&this.files[0];sel=null;"
+                  "if(f)pick(f);"
+                  "else document.getElementById('fwFileName').textContent='No file selected.';});"
                   "</script>",
                   max_size);
 
@@ -367,6 +396,21 @@ static void firmware_upload_complete(struct tcp_pcb *tpcb, size_t total_written)
     send_response(tpcb, msg);
 }
 
+// The slot named by the page in its X-Tinta-Slot header, or -1 if it sent none.
+static int requested_slot(void) {
+    static const char *const names[] = {"X-Tinta-Slot:", "x-tinta-slot:"};
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        const char *h = strstr(upload_session.header_buffer, names[i]);
+        if (!h)
+            continue;
+        h += strlen(names[i]);
+        while (*h == ' ')
+            h++;
+        return (*h == '0' || *h == '1') ? *h - '0' : -1;
+    }
+    return -1;
+}
+
 void web_firmware_upload(struct tcp_pcb *tpcb, int content_length, const char *body,
                          size_t body_len) {
     if (content_length <= 0 || (size_t)content_length > FIRMWARE_FLASH_SIZE) {
@@ -385,9 +429,21 @@ void web_firmware_upload(struct tcp_pcb *tpcb, int content_length, const char *b
     uint32_t target_offset = (strncmp(slot_info, "SLOT_0", 6) == 0) ? FIRMWARE_SLOT1_FLASH_OFFSET
                                                                     : FIRMWARE_SLOT0_FLASH_OFFSET;
 
-    size_t erase_length =
-        (((size_t)content_length + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1)) +
-        FLASH_SECTOR_SIZE;
+    // A page left open from an earlier start picked the image for the slot that was free then.
+    // It names that slot; refuse before anything is erased if the sign now runs from it.
+    const int page_slot = requested_slot();
+    const int free_slot = target_offset == FIRMWARE_SLOT1_FLASH_OFFSET ? 1 : 0;
+    if (page_slot >= 0 && page_slot != free_slot) {
+        debug_status("WARN", "OTA: page chose slot %d, slot %d is free — page out of date\n",
+                     page_slot, free_slot);
+        send_response(tpcb, "<h2 style='color:red'>This page is out of date</h2>"
+                            "<p>Tinta has restarted since it was opened. Reload the page and "
+                            "choose the file again. Nothing was changed.</p>");
+        reset_upload_session();
+        return;
+    }
+
+    const size_t erase_length = flash_ota_erase_length((size_t)content_length);
 
     upload_session.active = true;
     upload_session.total_received = 0;
@@ -396,7 +452,7 @@ void web_firmware_upload(struct tcp_pcb *tpcb, int content_length, const char *b
 
     dlog("UPLOAD FIRMWARE: target offset 0x%08X (active=%.*s)\n", target_offset, 6, slot_info);
 
-    if (erase_length > FIRMWARE_FLASH_SIZE) {
+    if (!erase_length) {
         dlog("ERROR: erase_length exceeds FIRMWARE_FLASH_SIZE, aborting\n");
         send_response(tpcb,
                       "<h2 style='color:red'>Firmware upload aborted (erase range invalid)</h2>");

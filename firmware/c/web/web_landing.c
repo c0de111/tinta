@@ -13,7 +13,7 @@ void build_landing_page(char *buf, size_t sz) {
     char timeout_info[64];
     add_timeout_info(timeout_info, sizeof(timeout_info));
 
-    int n = scaffold_page_open(buf, sz, "inki Setup", 30);
+    int n = scaffold_page_open(buf, sz, "Tinta Setup", 30);
 
     char uc_label[32];
     snprintf(uc_label, sizeof(uc_label), "%s", use_case.name);

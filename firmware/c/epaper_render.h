@@ -8,10 +8,6 @@
 
 #include "epaper_layout.h"
 
-// Module state: set once from main.c before render, used by all draw helpers.
-void epaper_set_battery_voltage(float v);
-float epaper_get_battery_voltage(void);
-
 void epaper_draw_subimage(uint8_t *buffer, const SubImage *sub_image, int x, int y);
 void epaper_draw_toggle(int x, int y, const sFONT *font, bool is_on);
 void epaper_draw_battery_icon(float voltage, uint8_t *buffer, int x, int y);

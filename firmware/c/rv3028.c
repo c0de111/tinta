@@ -1,4 +1,5 @@
 #include "rv3028.h"
+#include "pico/time.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -21,7 +22,17 @@
 #define RV3028_REG_EEPROM_BACKUP 0x37u
 #define RV3028_REG_ID 0x28u
 
+#define RV3028_REG_EEADDR 0x25u
+#define RV3028_REG_EEDATA 0x26u
+#define RV3028_REG_EECMD 0x27u
+#define RV3028_EECMD_WRITE_ONE 0x21u
+#define RV3028_EECMD_READ_ONE 0x22u
+
 #define RV3028_STATUS_AF_BIT (1u << 2)
+#define RV3028_STATUS_EEBUSY_BIT (1u << 7)
+#define RV3028_STATUS_BSF_BIT (1u << 5)
+#define RV3028_STATUS_PORF_BIT (1u << 0)
+#define RV3028_CONTROL1_EERD_BIT (1u << 3)
 
 #define RV3028_CONTROL1_WADA_BIT (1u << 5)
 #define RV3028_CONTROL2_AIE_BIT (1u << 3)
@@ -93,23 +104,78 @@ static int rv3028_write_u8(rv3028_t *rtc, uint8_t reg, uint8_t value) {
     return rv3028_write_bytes(rtc, reg, &value, 1u);
 }
 
+// After power-up the RV-3028 copies its configuration from EEPROM into RAM. A register
+// written before that ends is overwritten by the copy, so every access to the
+// configuration waits for EEBusy to clear first.
+static bool rv3028_wait_eeprom_idle(rv3028_t *rtc) {
+    for (int ms = 0; ms < 100; ms++) {
+        uint8_t status = 0u;
+        if (rv3028_read_u8(rtc, RV3028_REG_STATUS, &status) != 0)
+            return false;
+        if (!(status & RV3028_STATUS_EEBUSY_BIT))
+            return true;
+        sleep_ms(1);
+    }
+    return false;
+}
+
+// One EEPROM byte by command (datasheet: EERD = 1, EEADDR, EECMD 00h then 22h to read or 21h
+// to write, wait for EEBusy). Returns the byte read, the byte written, or -1.
+static int rv3028_eeprom_byte(rv3028_t *rtc, uint8_t addr, int write_value) {
+    uint8_t control1 = 0u;
+    if (!rv3028_wait_eeprom_idle(rtc) || rv3028_read_u8(rtc, RV3028_REG_CONTROL1, &control1) != 0)
+        return -1;
+    if (rv3028_write_u8(rtc, RV3028_REG_CONTROL1, (uint8_t)(control1 | RV3028_CONTROL1_EERD_BIT)) !=
+        0)
+        return -1;
+    int result = -1;
+    const bool write = write_value >= 0;
+    if (rv3028_write_u8(rtc, RV3028_REG_EEADDR, addr) == 0 &&
+        (!write || rv3028_write_u8(rtc, RV3028_REG_EEDATA, (uint8_t)write_value) == 0) &&
+        rv3028_write_u8(rtc, RV3028_REG_EECMD, 0x00u) == 0 &&
+        rv3028_write_u8(rtc, RV3028_REG_EECMD,
+                        write ? RV3028_EECMD_WRITE_ONE : RV3028_EECMD_READ_ONE) == 0 &&
+        rv3028_wait_eeprom_idle(rtc)) {
+        uint8_t data = 0u;
+        if (write)
+            result = write_value;
+        else if (rv3028_read_u8(rtc, RV3028_REG_EEDATA, &data) == 0)
+            result = data;
+    }
+    rv3028_write_u8(rtc, RV3028_REG_CONTROL1, control1);
+    return result;
+}
+
+// Without a coin cell the RTC lives on VBACKUP (fed from the batteries) while Tinta is off,
+// which needs the switch-over in level mode: BSM = 11, FEDE = 1.
+static uint8_t with_switchover(uint8_t backup) {
+    return (uint8_t)((backup & (uint8_t)~RV3028_BACKUP_BSM_MASK) | RV3028_BACKUP_BSM_LSM |
+                     RV3028_BACKUP_FEDE_BIT);
+}
+
+// Sets the switch-over in RAM and checks it. The EEPROM copy, which the RTC loads after every
+// loss of power, gets it too if it lacks it: a battery change must not stop the clock.
 static int rv3028_configure_backup_switchover(rv3028_t *rtc) {
+    rtc->switchover_ram = false;
+    rtc->switchover_eeprom_fixed = false;
     uint8_t backup = 0u;
+    if (!rv3028_wait_eeprom_idle(rtc))
+        return -1;
     int rc = rv3028_read_u8(rtc, RV3028_REG_EEPROM_BACKUP, &backup);
-    if (rc != 0) {
+    if (rc != 0)
         return rc;
-    }
+    if (with_switchover(backup) != backup)
+        rv3028_write_u8(rtc, RV3028_REG_EEPROM_BACKUP, with_switchover(backup));
+    uint8_t check = 0u;
+    rtc->switchover_ram = rv3028_read_u8(rtc, RV3028_REG_EEPROM_BACKUP, &check) == 0 &&
+                          check == with_switchover(backup);
 
-    uint8_t updated = backup;
-    updated = (uint8_t)(updated | RV3028_BACKUP_FEDE_BIT);               // FEDE = 1
-    updated = (uint8_t)((updated & (uint8_t)(~RV3028_BACKUP_BSM_MASK)) | // BSM = 11 (LSM)
-                        RV3028_BACKUP_BSM_LSM);
-
-    if (updated == backup) {
-        return 0;
-    }
-
-    return rv3028_write_u8(rtc, RV3028_REG_EEPROM_BACKUP, updated);
+    const int stored = rtc->boot_backup_eeprom;
+    if (stored >= 0 && with_switchover((uint8_t)stored) != (uint8_t)stored &&
+        rv3028_eeprom_byte(rtc, RV3028_REG_EEPROM_BACKUP, with_switchover((uint8_t)stored)) >= 0)
+        rtc->switchover_eeprom_fixed = rv3028_eeprom_byte(rtc, RV3028_REG_EEPROM_BACKUP, -1) ==
+                                       with_switchover((uint8_t)stored);
+    return 0;
 }
 
 int rv3028_init(rv3028_t *rtc, i2c_inst_t *i2c, uint8_t addr) {
@@ -119,11 +185,22 @@ int rv3028_init(rv3028_t *rtc, i2c_inst_t *i2c, uint8_t addr) {
 
     rtc->i2c = i2c;
     rtc->addr = (addr == 0u) ? RV3028_ADDR_DEFAULT : addr;
-    const int rc = rv3028_configure_backup_switchover(rtc);
-    if (rc != 0) {
+    rtc->boot_status = 0u;
+    rtc->boot_backup = 0u;
+    rv3028_wait_eeprom_idle(rtc);
+    rv3028_read_u8(rtc, RV3028_REG_STATUS, &rtc->boot_status);
+    rv3028_read_u8(rtc, RV3028_REG_EEPROM_BACKUP, &rtc->boot_backup);
+    rtc->boot_backup_eeprom = (int16_t)rv3028_eeprom_byte(rtc, RV3028_REG_EEPROM_BACKUP, -1);
+    return rv3028_configure_backup_switchover(rtc);
+}
+
+int rv3028_clear_power_flags(rv3028_t *rtc) {
+    uint8_t status = 0u;
+    int rc = rv3028_read_u8(rtc, RV3028_REG_STATUS, &status);
+    if (rc != 0)
         return rc;
-    }
-    return 0;
+    status = (uint8_t)(status & (uint8_t)~(RV3028_STATUS_PORF_BIT | RV3028_STATUS_BSF_BIT));
+    return rv3028_write_u8(rtc, RV3028_REG_STATUS, status);
 }
 
 int rv3028_read_time(rv3028_t *rtc, rv3028_time_t *time_data) {

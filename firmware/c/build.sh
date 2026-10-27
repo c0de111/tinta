@@ -29,6 +29,11 @@ USB_BOOTLOADER_ENABLE=0
 USE_CASE="SEATSURFING"  # Default use case
 INKI_DEBUG_USB_WAIT=OFF
 INKI_DEBUG_TLS_CB=OFF
+INKI_DEBUG_TIMING=OFF
+INKI_EXP_WIFI_PMK=OFF
+INKI_LOG_UPLOAD=OFF
+INKI_NET_UPDATE=OFF
+INKI_EXP_DHCP_REBOOT=OFF
 BUILD_ST25_TUNE=OFF
 
 # -----------------------------------------------------------------------------
@@ -75,6 +80,10 @@ while [[ $# -gt 0 ]]; do
       USE_CASE="WEATHERMAP"
       shift
       ;;
+    --nextcloud)
+      USE_CASE="NEXTCLOUD"
+      shift
+      ;;
     --new-usecase)
       USE_CASE="NEW_USECASE"
       shift
@@ -95,18 +104,44 @@ while [[ $# -gt 0 ]]; do
       INKI_DEBUG_TLS_CB=ON
       shift
       ;;
+    --debug-timing)
+      INKI_DEBUG_TIMING=ON
+      shift
+      ;;
+    --exp-wifi-pmk)
+      INKI_EXP_WIFI_PMK=ON
+      shift
+      ;;
+    --log-upload)
+      INKI_LOG_UPLOAD=ON
+      shift
+      ;;
+    --exp-net-update)
+      INKI_NET_UPDATE=ON
+      shift
+      ;;
+    --exp-dhcp-reboot)
+      INKI_EXP_DHCP_REBOOT=ON
+      shift
+      ;;
     --help|-h)
       echo "Usage: $0 [OPTIONS]"
       echo "Options:"
-      echo "  --use-case|-u <CASE>   Set use case: SEATSURFING (default), HISTORIAN, HOMEMATIC, NEW_USECASE"
+      echo "  --use-case|-u <CASE>   Set use case: SEATSURFING (default), HISTORIAN, HOMEMATIC, WEATHERMAP, NEXTCLOUD, NEW_USECASE"
       echo "  --historian            Build for Historian use case"
       echo "  --homematic            Build for Homematic use case"
       echo "  --seatsurfing          Build for SeatSurfing use case (default)"
       echo "  --weathermap           Build for Weathermap use case"
+      echo "  --nextcloud            Build for Nextcloud use case (day planner)"
       echo "  --new-usecase          Build for new use case template"
       echo "  --st25-tune            Build ST25 NFC antenna tuning helper (standalone)"
       echo "  --debug-usb-wait       Enable startup USB wait helper (CMake: INKI_DEBUG_USB_WAIT=ON)"
       echo "  --debug-tls-cb         Enable TLS debug callback helper (CMake: INKI_DEBUG_TLS_CB=ON)"
+      echo "  --debug-timing         Log DNS, TLS and HTTP timing per wake (INKI_DEBUG_TIMING=ON)"
+      echo "  --exp-wifi-pmk         Experiment: precomputed WPA2 key for the join, see wifi.c (CMake: INKI_EXP_WIFI_PMK=ON)"
+      echo "  --log-upload           Nextcloud: upload the log of each wake to the tracker host (CMake: INKI_LOG_UPLOAD=ON)"
+      echo "  --exp-net-update       Experiment: buttons 3 + 4 fetch new firmware from tinta-fw.wake-electronics.com (CMake: INKI_NET_UPDATE=ON)"
+      echo "  --exp-dhcp-reboot      Experiment: ask DHCP for the last address again, see wifi.c (CMake: INKI_EXP_DHCP_REBOOT=ON)"
       echo "  --help|-h              Show this help"
       exit 0
       ;;
@@ -120,12 +155,12 @@ done
 
 # Validate use case
 case $USE_CASE in
-  SEATSURFING|HISTORIAN|HOMEMATIC|WEATHERMAP|NEW_USECASE)
+  SEATSURFING|HISTORIAN|HOMEMATIC|WEATHERMAP|NEXTCLOUD|NEW_USECASE)
     # Valid use case
     ;;
   *)
     echo "Error: Invalid use case '$USE_CASE'"
-    echo "Valid options: SEATSURFING, HISTORIAN, HOMEMATIC, WEATHERMAP, NEW_USECASE"
+    echo "Valid options: SEATSURFING, HISTORIAN, HOMEMATIC, WEATHERMAP, NEXTCLOUD, NEW_USECASE"
     exit 1
     ;;
 esac
@@ -156,7 +191,7 @@ if [ "$USB_BOOTLOADER_ENABLE" -eq 1 ]; then
 else
     echo -e "\033[1;32m[INFO] USB-UART Bootloader DISABLED\033[0m" # green
 fi
-echo "[INFO] Optional debug switches: --debug-usb-wait (INKI_DEBUG_USB_WAIT=${INKI_DEBUG_USB_WAIT}), --debug-tls-cb (INKI_DEBUG_TLS_CB=${INKI_DEBUG_TLS_CB})"
+echo "[INFO] Optional debug switches: --debug-usb-wait (INKI_DEBUG_USB_WAIT=${INKI_DEBUG_USB_WAIT}), --debug-tls-cb (INKI_DEBUG_TLS_CB=${INKI_DEBUG_TLS_CB}), --debug-timing (INKI_DEBUG_TIMING=${INKI_DEBUG_TIMING}), --exp-wifi-pmk (INKI_EXP_WIFI_PMK=${INKI_EXP_WIFI_PMK}), --log-upload (INKI_LOG_UPLOAD=${INKI_LOG_UPLOAD}), --exp-net-update (INKI_NET_UPDATE=${INKI_NET_UPDATE}), --exp-dhcp-reboot (INKI_EXP_DHCP_REBOOT=${INKI_EXP_DHCP_REBOOT})"
 if [ "$BUILD_ST25_TUNE" = "ON" ]; then
     echo -e "\033[1;36m[INFO] ST25 tune helper: ENABLED\033[0m"
 fi
@@ -178,6 +213,11 @@ cmake -DUSB_BOOTLOADER_ENABLE=${USB_BOOTLOADER_ENABLE} \
       -DUSE_CASE_DEFINE="USE_CASE_${USE_CASE}" \
       -DINKI_DEBUG_USB_WAIT=${INKI_DEBUG_USB_WAIT} \
       -DINKI_DEBUG_TLS_CB=${INKI_DEBUG_TLS_CB} \
+      -DINKI_DEBUG_TIMING=${INKI_DEBUG_TIMING} \
+      -DINKI_EXP_WIFI_PMK=${INKI_EXP_WIFI_PMK} \
+      -DINKI_LOG_UPLOAD=${INKI_LOG_UPLOAD} \
+      -DINKI_NET_UPDATE=${INKI_NET_UPDATE} \
+      -DINKI_EXP_DHCP_REBOOT=${INKI_EXP_DHCP_REBOOT} \
       -DBUILD_ST25_TUNE=${BUILD_ST25_TUNE} \
       "$SCRIPT_DIR"
 
@@ -233,11 +273,19 @@ patch_firmware "$BIN_SLOT1" 1
 
 echo "✅ Firmware headers patched successfully."
 
+# One file for every update: both slot images behind "TINTAFW1"; the firmware page cuts out
+# the one for the slot that is not running (web/web_firmware.c). The single slot images stay
+# in build/ for flash.sh and create_uf2.sh.
 mkdir -p "$BIN_UPLOAD_DIR"
-cp -f "$BIN_SLOT0" "$BIN_UPLOAD_DIR/inki_slot0.bin"
-cp -f "$BIN_SLOT1" "$BIN_UPLOAD_DIR/inki_slot1.bin"
+rm -f "$BIN_UPLOAD_DIR"/inki_slot0.bin "$BIN_UPLOAD_DIR"/inki_slot1.bin
+header_text() { dd if="$1" bs=1 skip="$2" count="$3" status=none | tr -d '\0'; }
+FW_VERSION=$(header_text "$BIN_SLOT0" 30 32)
+FW_USE_CASE=$(header_text "$BIN_SLOT0" 73 24 | tr '[:upper:]' '[:lower:]')
+BIN_CONTAINER="$BIN_UPLOAD_DIR/tinta-$FW_USE_CASE-$FW_VERSION.tfw"
+rm -f "$BIN_UPLOAD_DIR"/*.tfw
+{ printf 'TINTAFW1'; cat "$BIN_SLOT0" "$BIN_SLOT1"; } > "$BIN_CONTAINER"
 
-echo "✅ Upload binaries copied to: $BIN_UPLOAD_DIR"
+echo "✅ Update file (either slot): $BIN_CONTAINER"
 
 # ST25 tune helper binary
 if [ "$BUILD_ST25_TUNE" = "ON" ] && [ -f "$BUILD_DIR/inki_st25_tune.elf" ]; then

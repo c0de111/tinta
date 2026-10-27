@@ -11,6 +11,7 @@
 #include "rtc.h"
 #include "sensors.h"
 #include "st25_io.h"
+#include "third_party/qrcodegen/qrcodegen.h"
 #include "use_case.h"
 #include "wifi.h"
 #include <stdio.h>
@@ -24,7 +25,7 @@ extern uint8_t nfc_image_buf[];
 
 static const layout_elem_t dnd_layout_75[] = {
     {ELEM_LOGO, 690, 10, .image = &inki_octopus_100_95},
-    {ELEM_VAR, 50, 60, &font_ubuntu_mono_24pt_bold, .var_index = 0},
+    {ELEM_VAR, 50, 60, &font_ubuntu_mono_22pt_bold, .var_index = 0},
     {ELEM_TEXT, 80, 180, &font_ubuntu_mono_28pt_bold, .text = "Videoconference"},
     {ELEM_TEXT, 80, 270, &font_ubuntu_mono_20pt_bold, .text = "Please do not disturb"},
     {ELEM_VAR, 80, 340, &font_ubuntu_mono_14pt, .var_index = 1},
@@ -43,7 +44,7 @@ static const layout_elem_t udm_layout_75[] = {
     {ELEM_LOGO, 680, 20, .image = &inki_octopus_100_95},
     {ELEM_VAR, 40, 50, &font_ubuntu_mono_28pt_bold, .var_index = 0},
     {ELEM_TEXT, 25, 180, &font_ubuntu_mono_16pt, .text = "Universal Decision Maker says:"},
-    {ELEM_VAR, 295, 280, &font_ubuntu_mono_36pt_bold, .var_index = 1},
+    {ELEM_VAR, 295, 280, &font_ubuntu_mono_28pt_bold, .var_index = 1},
 };
 
 static const layout_elem_t udm_layout_42[] = {
@@ -100,24 +101,6 @@ static const layout_elem_t error_layout_42[] = {
     {ELEM_VAR, 20, 180, &font_ubuntu_mono_8pt, .var_index = 2},
     {ELEM_VAR, 20, 215, &font_ubuntu_mono_8pt, .var_index = 3},
     {ELEM_VAR, 20, 260, &font_ubuntu_mono_8pt, .var_index = 4},
-};
-
-static const layout_elem_t wifi_setup_layout_42[] = {
-    {ELEM_LOGO, 290, 10, .image = &inki_octopus_100_95},
-    {ELEM_TEXT, 20, 20, &font_ubuntu_mono_11pt, .text = "WIFI Setup Mode"},
-    {ELEM_TEXT, 20, 80, &font_ubuntu_mono_10pt, .text = "Connect to "},
-    {ELEM_TEXT, 47, 130, &font_ubuntu_mono_12pt_bold, .text = "http://inki-setup"},
-    {ELEM_TEXT, 20, 180, &font_ubuntu_mono_10pt, .text = "or"},
-    {ELEM_TEXT, 38, 230, &font_ubuntu_mono_12pt_bold, .text = "http://192.168.4.1"},
-};
-
-static const layout_elem_t wifi_setup_layout_75[] = {
-    {ELEM_LOGO, 490, 100, .image = &inki_octopus_100_95},
-    {ELEM_TEXT, 220, 110, &font_ubuntu_mono_11pt, .text = "WIFI Setup Mode"},
-    {ELEM_TEXT, 220, 170, &font_ubuntu_mono_10pt, .text = "Connect to "},
-    {ELEM_TEXT, 247, 220, &font_ubuntu_mono_12pt_bold, .text = "http://inki-setup"},
-    {ELEM_TEXT, 220, 270, &font_ubuntu_mono_10pt, .text = "or"},
-    {ELEM_TEXT, 238, 320, &font_ubuntu_mono_12pt_bold, .text = "http://192.168.4.1"},
 };
 
 // --- Render functions ---
@@ -272,7 +255,7 @@ static void render_page_device_info(uint8_t *image_buffer) {
                  mac[1], mac[2], mac[3], mac[4], mac[5]);
 
         float coin_voltage = read_coin_cell_voltage(device_config_flash.data.conversion_factor);
-        snprintf(buf[8], sizeof(buf[8]), "Vcc: %.3fV", epaper_get_battery_voltage());
+        snprintf(buf[8], sizeof(buf[8]), "Vcc: %.3fV", boot_battery_voltage());
         snprintf(buf[9], sizeof(buf[9]), "Vbat: %.3fV", coin_voltage);
         snprintf(buf[10], sizeof(buf[10]), "adc conv.: %.8f",
                  device_config_flash.data.conversion_factor);
@@ -292,7 +275,7 @@ static void render_page_device_info(uint8_t *image_buffer) {
         };
         epaper_render_layout(image_buffer, info_layout_42,
                              sizeof(info_layout_42) / sizeof(info_layout_42[0]), vars);
-        epaper_draw_battery_icon(epaper_get_battery_voltage(), image_buffer, 330, 190);
+        epaper_draw_battery_icon(boot_battery_voltage(), image_buffer, 330, 190);
 
     } else {
         dlog("render_page_device_info is not supported for the configured ePaper type.\n");
@@ -324,18 +307,215 @@ void render_page_error(uint8_t *image_buffer, const char *title, const char *det
     }
 }
 
-void render_page_wifi_setup(uint8_t *image_buffer) {
-    Paint_Clear(WHITE);
+// --- Setup and welcome pages ---
 
-    if (device_config_flash.data.epapertype == EPAPER_WAVESHARE_7IN5_V2) {
-        epaper_render_layout(image_buffer, wifi_setup_layout_75,
-                             sizeof(wifi_setup_layout_75) / sizeof(wifi_setup_layout_75[0]), NULL);
-    } else if (device_config_flash.data.epapertype == EPAPER_WAVESHARE_4IN2_V2) {
-        epaper_render_layout(image_buffer, wifi_setup_layout_42,
-                             sizeof(wifi_setup_layout_42) / sizeof(wifi_setup_layout_42[0]), NULL);
-    } else {
-        dlog("render_page_wifi_setup is not supported for the configured ePaper type.\n");
+// Where things go on the setup pages; the two panels differ in size only. The code stands
+// on the left, as large as the panel allows. The column beside it runs from the code's top
+// edge to its bottom edge. Below the code: what comes next, or the address the code holds.
+typedef struct {
+    int title_x, title_y;
+    int qr_x, qr_y, qr_box; // the code is scaled to fill this square
+    int text_x;             // column right of the code
+} setup_layout_t;
+
+static const setup_layout_t setup_layout_42 = {16, 10, 16, 54, 175, 203};
+static const setup_layout_t setup_layout_75 = {110, 50, 110, 110, 240, 390};
+
+#define SETUP_LINE 24     // pitch of the small lines in the column
+#define SETUP_FOOT_GAP 14 // between the code and the lines below it
+
+static const setup_layout_t *setup_layout(void) {
+    switch (device_config_flash.data.epapertype) {
+    case EPAPER_WAVESHARE_7IN5_V2:
+        return &setup_layout_75;
+    case EPAPER_WAVESHARE_4IN2_V2:
+        return &setup_layout_42;
+    default:
+        return NULL;
     }
+}
+
+// Paint_DrawRectangle fills rows up to but not including Yend while columns are inclusive,
+// hence the uneven bounds.
+static void draw_qr(const setup_layout_t *l, const char *text) {
+    enum { MAX_VERSION = 5 };
+    static uint8_t code[qrcodegen_BUFFER_LEN_FOR_VERSION(MAX_VERSION)];
+    static uint8_t temp[qrcodegen_BUFFER_LEN_FOR_VERSION(MAX_VERSION)];
+    if (!qrcodegen_encodeText(text, temp, code, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN,
+                              MAX_VERSION, qrcodegen_Mask_AUTO, true)) {
+        dlog("setup page: QR code does not fit\n");
+        return;
+    }
+    const int n = qrcodegen_getSize(code);
+    const int module = l->qr_box / n;
+    const int x0 = l->qr_x + (l->qr_box - n * module) / 2;
+    const int y0 = l->qr_y + (l->qr_box - n * module) / 2;
+    for (int r = 0; r < n; r++)
+        for (int c = 0; c < n; c++)
+            if (qrcodegen_getModule(code, c, r))
+                Paint_DrawRectangle(x0 + c * module, y0 + r * module, x0 + (c + 1) * module - 1,
+                                    y0 + (r + 1) * module, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+}
+
+static sFONT *const setup_small = &font_ubuntu_mono_8pt;
+static sFONT *const setup_big = &font_ubuntu_mono_12pt_bold;
+
+// Clears the panel and draws what both setup pages share: the task of the page as its title,
+// and two dots at the end of the title row, the current step filled (step < 0: no dots).
+// NULL on an unsupported panel.
+static const setup_layout_t *begin_setup_page(const char *task, int step) {
+    Paint_Clear(WHITE);
+    const setup_layout_t *l = setup_layout();
+    if (!l) {
+        dlog("setup pages are not supported for the configured ePaper type.\n");
+        return NULL;
+    }
+    sFONT *title = &font_ubuntu_mono_10pt;
+    Paint_DrawString_EN(l->title_x, l->title_y, task, title, WHITE, BLACK);
+    enum { DOT_R = 5, DOT_PITCH = 18 };
+    const int dot_y = l->title_y + title->Height / 2 + 2;
+    for (int i = 0; step >= 0 && i < 2; i++)
+        Paint_DrawCircle((UWORD)(Paint.Width - l->title_x - DOT_R - (1 - i) * DOT_PITCH),
+                         (UWORD)dot_y, DOT_R, BLACK, DOT_PIXEL_1X1,
+                         i == step ? DRAW_FILL_FULL : DRAW_FILL_EMPTY);
+    const int rule_y = l->title_y + title->Height + 6;
+    Paint_DrawLine(l->title_x, rule_y, Paint.Width - l->title_x, rule_y, BLACK, DOT_PIXEL_1X1,
+                   LINE_STYLE_SOLID);
+    epaper_draw_firmware_info();
+    return l;
+}
+
+void render_page_setup_join(uint8_t *image_buffer) {
+    (void)image_buffer;
+    const setup_layout_t *l = begin_setup_page("Connect to Tinta", 0);
+    if (!l)
+        return;
+    const char *ssid = wifi_setup_ssid();
+    const char *password = wifi_setup_password();
+
+    // What a phone's camera turns into "join this network".
+    char join[80];
+    snprintf(join, sizeof(join), "WIFI:T:WPA;S:%s;P:%s;;", ssid, password);
+    draw_qr(l, join);
+
+    const int x = l->text_x;
+    const int bottom = l->qr_y + l->qr_box - setup_big->Height; // password ends with the code
+    Paint_DrawString_EN(x, l->qr_y, "Scan the code", setup_small, WHITE, BLACK);
+    Paint_DrawString_EN(x, l->qr_y + SETUP_LINE, "or join Wi-Fi:", setup_small, WHITE, BLACK);
+    Paint_DrawString_EN(x, l->qr_y + 2 * SETUP_LINE, ssid, setup_big, WHITE, BLACK);
+    Paint_DrawString_EN(x, bottom - SETUP_LINE, "Password:", setup_small, WHITE, BLACK);
+    Paint_DrawString_EN(x, bottom, password, setup_big, WHITE, BLACK);
+
+    // The page changes by itself: the user waits instead of looking for the next step.
+    const int foot_y = l->qr_y + l->qr_box + SETUP_FOOT_GAP;
+    Paint_DrawString_EN(l->qr_x, foot_y, "Once connected, this page", setup_small, WHITE, BLACK);
+    Paint_DrawString_EN(l->qr_x, foot_y + 22, "shows the next step.", setup_small, WHITE, BLACK);
+}
+
+void render_page_setup_open(uint8_t *image_buffer, const char *client_name) {
+    (void)image_buffer;
+    const setup_layout_t *l = begin_setup_page("Open settings", 1);
+    if (!l)
+        return;
+
+    draw_qr(l, SETUP_PAGE_URL);
+
+    // Which device is connected confirms the first step; without a name those lines go.
+    const int cols = ((int)Paint.Width - l->title_x - l->text_x) / setup_small->Width;
+    char name[40] = "";
+    if (client_name && client_name[0] && cols >= 4) {
+        if ((int)strlen(client_name) <= cols)
+            snprintf(name, sizeof(name), "%s", client_name);
+        else
+            snprintf(name, sizeof(name), "%.*s..", cols - 2, client_name);
+    }
+    const char *lines[] = {"Connected:",     name,         "",
+                           "Scan the code,", "tap Tinta,", "or type below:"};
+    enum { LINES = sizeof(lines) / sizeof(lines[0]) };
+    const int first = name[0] ? 0 : 3;
+    const int pitch =
+        (l->qr_box - setup_small->Height) / (LINES - 1); // last line ends with the code
+    for (int i = first; i < LINES; i++)
+        Paint_DrawString_EN(l->text_x, l->qr_y + i * pitch, lines[i], setup_small, WHITE, BLACK);
+
+    Paint_DrawString_EN(l->qr_x, l->qr_y + l->qr_box + SETUP_FOOT_GAP, SETUP_PAGE_URL, setup_big,
+                        WHITE, BLACK);
+}
+
+// Writes text from (x, y) in lines that break between words and end before right; a word
+// longer than a line is cut. Paint_DrawString_EN would wrap at the panel edge, mid-word.
+// Returns the y below the last line.
+static int draw_words(int x, int y, int right, const char *text, sFONT *font, int pitch) {
+    char line[64];
+    int cols = (right - x) / font->Width;
+    if (cols > (int)sizeof(line) - 1)
+        cols = (int)sizeof(line) - 1;
+    for (const char *p = text; *p;) {
+        while (*p == ' ')
+            p++;
+        if (!*p)
+            break;
+        int n = 0, last_space = -1;
+        while (n < cols && p[n]) {
+            if (p[n] == ' ')
+                last_space = n;
+            n++;
+        }
+        if (p[n] && p[n] != ' ' && last_space > 0)
+            n = last_space; // the next word does not fit: break before it
+        memcpy(line, p, (size_t)n);
+        line[n] = '\0';
+        Paint_DrawString_EN(x, y, line, font, WHITE, BLACK);
+        y += pitch;
+        p += n;
+    }
+    return y;
+}
+
+void render_page_update(uint8_t *image_buffer, const update_page_t *page) {
+    (void)image_buffer;
+    const setup_layout_t *l = begin_setup_page(page->title, -1);
+    if (!l)
+        return;
+    const int x = l->title_x, right = (int)Paint.Width - l->title_x;
+    sFONT *body = &font_ubuntu_mono_10pt;
+    int y = l->qr_y;
+    if (page->state && page->state[0])
+        y = draw_words(x, y, right, page->state, body, body->Height + 6);
+    if (page->version && page->version[0]) {
+        Paint_DrawString_EN(x, y + 4, page->version, setup_big, WHITE, BLACK);
+        y += 4 + setup_big->Height + 2;
+        if (page->built && page->built[0]) {
+            Paint_DrawString_EN(x, y, page->built, setup_small, WHITE, BLACK);
+            y += setup_small->Height;
+        }
+    }
+    if (page->tip && page->tip[0])
+        draw_words(x, y + 16, right, page->tip, setup_small, setup_small->Height + 4);
+    // Above the firmware line at the foot (Font8 on 4.2", Font12 on 7.5").
+    if (page->source && page->source[0]) {
+        const int info_h = Paint.Height > 400 ? 12 : 8;
+        Paint_DrawString_EN(x, (int)Paint.Height - info_h - 10 - setup_small->Height, page->source,
+                            setup_small, WHITE, BLACK);
+    }
+}
+
+// What a sign shows while nobody has set it up: on the way to its owner, and after a setup
+// that ran out of time. ePaper keeps the picture without power, so it is the quick start guide.
+void render_page_welcome(uint8_t *image_buffer) {
+    (void)image_buffer;
+    Paint_Clear(WHITE);
+    const setup_layout_t *l = setup_layout();
+    if (!l)
+        return;
+    sFONT *font = &font_ubuntu_mono_10pt;
+    int y = l->qr_y;
+    Paint_DrawString_EN(l->title_x, l->title_y, "Tinta", &font_ubuntu_mono_12pt_bold, WHITE, BLACK);
+    Paint_DrawString_EN(l->title_x, y, "Not set up yet.", font, WHITE, BLACK);
+    Paint_DrawString_EN(l->title_x, y += 50, "Press any button", font, WHITE, BLACK);
+    Paint_DrawString_EN(l->title_x, y += 30, "or hold a phone", font, WHITE, BLACK);
+    Paint_DrawString_EN(l->title_x, y += 30, "to the display", font, WHITE, BLACK);
+    Paint_DrawString_EN(l->title_x, y += 30, "to start.", font, WHITE, BLACK);
     epaper_draw_firmware_info();
 }
 
@@ -378,5 +558,5 @@ const page_def_t page_decision_maker = {"decision_maker", render_page_decision_m
 const page_def_t page_device_info = {"device_info", render_page_device_info, false};
 const page_def_t page_nfc_text = {"nfc_text", render_page_nfc_text, false};
 const page_def_t page_nfc_image = {"nfc_image", render_page_nfc_image, false};
-const page_def_t page_wifi_setup = {"wifi_setup", render_page_wifi_setup, false};
+const page_def_t page_wifi_setup = {"wifi_setup", render_page_setup_join, false};
 const page_def_t page_placeholder = {"placeholder", render_page_placeholder_default, false};

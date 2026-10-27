@@ -26,14 +26,12 @@ and an optional telemetry service. Formerly published as **inki**.
 No custom hardware required — the firmware runs on a stock Pico W with the display disabled.
 
 1. Download a prebuilt UF2 from the [latest release](https://github.com/c0de111/tinta/releases/latest):
-   [seatsurfing](https://github.com/c0de111/tinta/releases/latest/download/inki_seatsurfing.uf2) ·
-   [historian](https://github.com/c0de111/tinta/releases/latest/download/inki_historian.uf2) ·
-   [homematic](https://github.com/c0de111/tinta/releases/latest/download/inki_homematic.uf2)
+   [seatsurfing](https://github.com/c0de111/tinta/releases/latest/download/tinta_seatsurfing.uf2) ·
+   [historian](https://github.com/c0de111/tinta/releases/latest/download/tinta_historian.uf2) ·
+   [homematic](https://github.com/c0de111/tinta/releases/latest/download/tinta_homematic.uf2)
 2. Hold BOOTSEL while plugging in the Pico W, then copy the UF2 to the `RPI-RP2` drive.
-3. The onboard LED blinks `inki` in Morse once it is up.
-4. Connect to the Wi-Fi access point `inki-setup` and open `http://192.168.4.1`.
-
-> Release artifacts and the setup access point still carry the old `inki` name.
+3. The onboard LED blinks `TINTA` in Morse once it is up.
+4. Connect to the Wi-Fi access point `Tinta-XXXX`. Its password is shown on the display, or on a bare Pico W in the USB serial log (`AP active: SSID=… password=…`). Then open `http://192.168.4.1`.
 
 ## Build from source
 

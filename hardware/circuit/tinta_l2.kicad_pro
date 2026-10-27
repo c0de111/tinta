@@ -76,11 +76,11 @@
           ""
         ],
         [
-          "unconnected_items|26688000|54000000|97a628fb-7017-4d56-9cbc-ddbf026d03d7|a763b8ef-63ce-475a-98e5-deff807e7d76",
+          "unconnected_items|26688000|54000000|F.Cu|4|97a628fb-7017-4d56-9cbc-ddbf026d03d7|a763b8ef-63ce-475a-98e5-deff807e7d76",
           ""
         ],
         [
-          "unconnected_items|46362500|31150000|1d30e589-1f6e-4b70-b76e-2decd119f527|e828e5a7-76dd-4ece-9681-403bd39ec46d",
+          "unconnected_items|46362500|31150000|F.Cu|4|1d30e589-1f6e-4b70-b76e-2decd119f527|e828e5a7-76dd-4ece-9681-403bd39ec46d",
           ""
         ]
       ],
@@ -481,6 +481,7 @@
       "single_global_label": "ignore",
       "unannotated": "error",
       "unconnected_wire_endpoint": "warning",
+      "undefined_netclass": "error",
       "unit_value_mismatch": "error",
       "unresolved_variable": "error",
       "wire_dangling": "error"
@@ -491,7 +492,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "inki_l2.kicad_pro",
+    "filename": "tinta_l2.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -538,7 +539,7 @@
   },
   "schematic": {
     "annotate_start_num": 0,
-    "bom_export_filename": "inki_l2_BOM.csv",
+    "bom_export_filename": "tinta_l2_BOM.csv",
     "bom_fmt_presets": [],
     "bom_fmt_settings": {
       "field_delimiter": ",",

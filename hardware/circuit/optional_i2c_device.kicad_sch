@@ -834,7 +834,7 @@
 			(uuid "19cdef03-00a3-43f5-9ac6-f0da408bcb84")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c/8aac0e89-39a1-4909-a5ea-b7760d4f132b"
 					(reference "C7")
 					(unit 1)
@@ -868,7 +868,7 @@
 				)
 			)
 		)
-		(property "Footprint" "inki:BMP581"
+		(property "Footprint" "Tinta:BMP581"
 			(at 77.47 41.91 0)
 			(effects
 				(font
@@ -926,7 +926,7 @@
 			(uuid "8bc339f1-6218-4ac2-8c51-50d0d0a64bfd")
 		)
 		(instances
-			(project "inki"
+			(project "tinta_l2"
 				(path "/240a819b-80d5-474c-958b-cef4297f8f8c/8aac0e89-39a1-4909-a5ea-b7760d4f132b"
 					(reference "U2")
 					(unit 1)

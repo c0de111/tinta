@@ -4,10 +4,12 @@
 #include "debug.h"
 #include "i2c_bus.h"
 #include "pico/time.h"
+#include "seatsurfing/device_mode.h"
 #include "seatsurfing/seatsurfing_flash.h"
 #include "webserver.h"
 #include "webserver_scaffold.h"
 #include "webserver_utils.h"
+#include "wifi.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -42,6 +44,7 @@ void ss_render_config_page(char *buf, size_t sz, const char *msg) {
         "<h2>Room Settings</h2>"
         "<label>Room name:<br><input type=\"text\" name=\"roomname\" value=\"%s\" "
         "maxlength=\"15\"></label>"
+        "%s"
         "<div style=\"margin-top:1em;\">"
         "<strong>Room type</strong><br>"
         "<label class=\"inline\"><input type=\"radio\" name=\"type\" value=\"0\" %s> Office</label>"
@@ -55,7 +58,11 @@ void ss_render_config_page(char *buf, size_t sz, const char *msg) {
         "<small>Number of seats is defined by filled Space Name fields below.</small>"
         "</div>"
         "</div>",
-        device_config_flash.data.roomname, (device_config_flash.data.type == 0 ? "checked" : ""),
+        device_config_flash.data.roomname,
+        (seatsurfing_config_flash.data.device_mode == 1
+             ? "<small>Set in Seatsurfing while device mode is on.</small>"
+             : ""),
+        (device_config_flash.data.type == 0 ? "checked" : ""),
         (device_config_flash.data.type == 1 ? "checked" : ""),
         (device_config_flash.data.type == 2 ? "checked" : ""),
         (unsigned)seatsurfing_config_flash.data.seat_count);
@@ -85,6 +92,24 @@ void ss_render_config_page(char *buf, size_t sz, const char *msg) {
         seatsurfing_config_flash.data.location_id, seatsurfing_config_flash.data.space_ids[0],
         seatsurfing_config_flash.data.space_ids[1], seatsurfing_config_flash.data.space_ids[2],
         seatsurfing_config_flash.data.space_ids[3]);
+
+    char claim_code[SS_CLAIM_CODE_LEN + 1];
+    ss_device_claim_code(claim_code, sizeof(claim_code));
+    n += snprintf(buf + n, sz - n,
+                  "<div class=\"section\">"
+                  "<h2>Device Mode</h2>"
+                  "<small>Requires the Seatsurfing Plus plugin. The sign enrolls itself with a "
+                  "claim code and shows the spaces an admin assigns to it (up to three on the "
+                  "7.5\", the first on the 4.2\"); username, password, location and space names "
+                  "above are not used.</small>"
+                  "<div style=\"margin-top:1em;\">"
+                  "<label class=\"inline\"><input type=\"checkbox\" "
+                  "name=\"text13\" value=\"1\" %s> Use device mode</label>"
+                  "</div>"
+                  "<p class=\"small\">Device: %s<br>Claim code: %s</p>"
+                  "</div>",
+                  seatsurfing_config_flash.data.device_mode == 1 ? "checked" : "",
+                  wifi_setup_ssid(), claim_code[0] ? claim_code : "(created on first connection)");
 
     n += snprintf(buf + n, sz - n,
                   "<fieldset%s class=\"section\" "
@@ -161,6 +186,7 @@ const char *ss_handle_config_form(const char *body, size_t len) {
     strncpy(new_cfg.data.booking_email, result.text[10], sizeof(new_cfg.data.booking_email) - 1);
     strncpy(new_cfg.data.booking_password, result.text[11],
             sizeof(new_cfg.data.booking_password) - 1);
+    new_cfg.data.device_mode = (result.text[12][0] == '1');
 
     bool ok = save_seatsurfing_config(&new_cfg);
     if (ok)

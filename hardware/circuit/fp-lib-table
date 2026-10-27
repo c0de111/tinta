@@ -1,6 +1,6 @@
 (fp_lib_table
   (version 7)
-  (lib (name "inki")(type "KiCad")(uri "${KIPRJMOD}/../libs/BMP581.pretty")(options "")(descr ""))
+  (lib (name "Tinta")(type "KiCad")(uri "${KIPRJMOD}/../libs/BMP581.pretty")(options "")(descr ""))
   (lib (name "JZ400")(type "KiCad")(uri "${KIPRJMOD}/project-libraries/JZ400.pretty")(options "")(descr "Knowles JZ400 trimmer capacitor"))
   (lib (name "Module_RaspberryPi_Pico")(type "KiCad")(uri "${KIPRJMOD}/project-libraries/Module_RaspberryPi_Pico.pretty")(options "")(descr "Pico footprint library"))
   (lib (name "ST25DV04KC-IE6S3")(type "KiCad")(uri "${KIPRJMOD}/project-libraries/ST25DV04KC-IE6S3.pretty")(options "")(descr "ST25DV04KC footprint library"))

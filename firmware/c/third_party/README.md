@@ -14,6 +14,7 @@ none of the components below impose copyleft obligations on that firmware code.
 | `Fonts`        | BSD-3-Clause                  | STMicroelectronics (2014); grant in each file header     |
 | `fonts_custom` | Ubuntu Font Licence 1.0 (UFL) | Bitmap tables generated from the Ubuntu Mono typeface    |
 | `miniz`        | Unlicense / public domain     | Rich Geldreich; statement at the end of the miniz source |
+| `qrcodegen`    | MIT                           | Project Nayuki; grant in each source file header         |
 | `st25dv`       | BSD-3-Clause                  | [STMicroelectronics/stm32-st25dv]; `st25dv/LICENSE.md`   |
 
 [STMicroelectronics/stm32-st25dv]: https://github.com/STMicroelectronics/stm32-st25dv

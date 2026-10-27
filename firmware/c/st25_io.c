@@ -467,3 +467,31 @@ bool st25_clear_request(void) {
     dlog("[ST25] request cleared\n");
     return true;
 }
+
+bool st25_read_bytes(uint16_t addr, uint8_t *buf, uint16_t len) {
+    if (!st25_initialized)
+        return false;
+    return St25Dv_Drv.ReadData(&st25_obj, buf, addr, len) == NFCTAG_OK;
+}
+
+bool st25_write_bytes(uint16_t addr, const uint8_t *buf, uint16_t len) {
+    if (!st25_initialized)
+        return false;
+
+    const uint32_t timeout = (uint32_t)ST25DV_WRITE_TIMEOUT + 50u;
+    const uint32_t t0 = get_tick();
+    int32_t ret;
+    do {
+        ret = St25Dv_Drv.WriteData(&st25_obj, buf, addr, len);
+        if (ret == NFCTAG_OK)
+            break;
+        sleep_ms(2);
+    } while ((get_tick() - t0) < timeout);
+
+    if (ret != NFCTAG_OK) {
+        dlog("[ST25] write of %u bytes at 0x%04X failed\n", (unsigned)len, addr);
+        return false;
+    }
+    sleep_ms(6);
+    return true;
+}

@@ -9,7 +9,7 @@
   },
   "GeneralSpecs": {
     "ProjectId": {
-      "Name": "inki",
+      "Name": "tinta_l2",
       "GUID": "696e6b69-2e6b-4696-9361-645f70636258",
       "Revision": "rev?"
     },
@@ -32,47 +32,47 @@
   ],
   "FilesAttributes": [
     {
-      "Path": "inki-F_Cu.gbr",
+      "Path": "tinta_l2-F_Cu.gbr",
       "FileFunction": "Copper,L1,Top",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "inki-B_Cu.gbr",
+      "Path": "tinta_l2-B_Cu.gbr",
       "FileFunction": "Copper,L2,Bot",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "inki-F_Paste.gbr",
+      "Path": "tinta_l2-F_Paste.gbr",
       "FileFunction": "SolderPaste,Top",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "inki-B_Paste.gbr",
+      "Path": "tinta_l2-B_Paste.gbr",
       "FileFunction": "SolderPaste,Bot",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "inki-F_Silkscreen.gbr",
+      "Path": "tinta_l2-F_Silkscreen.gbr",
       "FileFunction": "Legend,Top",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "inki-B_Silkscreen.gbr",
+      "Path": "tinta_l2-B_Silkscreen.gbr",
       "FileFunction": "Legend,Bot",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "inki-F_Mask.gbr",
+      "Path": "tinta_l2-F_Mask.gbr",
       "FileFunction": "SolderMask,Top",
       "FilePolarity": "Negative"
     },
     {
-      "Path": "inki-B_Mask.gbr",
+      "Path": "tinta_l2-B_Mask.gbr",
       "FileFunction": "SolderMask,Bot",
       "FilePolarity": "Negative"
     },
     {
-      "Path": "inki-Edge_Cuts.gbr",
+      "Path": "tinta_l2-Edge_Cuts.gbr",
       "FileFunction": "Profile",
       "FilePolarity": "Positive"
     }

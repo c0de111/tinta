@@ -144,6 +144,11 @@ void debug_module_log(uint32_t module, log_level_t level, const char *format, ..
 
 // --- Buffer flush ---
 
+const char *debug_buffer_peek(size_t *len) {
+    *len = debug_buffer_index;
+    return debug_buffer;
+}
+
 void debug_flush(void) {
     if (current_debug_mode == DEBUG_BUFFERED || current_debug_mode == DEBUG_BOTH) {
         printf("%s", debug_buffer);

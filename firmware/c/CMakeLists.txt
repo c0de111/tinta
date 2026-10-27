@@ -41,6 +41,7 @@ endif()
 if(USE_CASE STREQUAL "seatsurfing")
     set(UC_SOURCES
         seatsurfing/client.c
+        seatsurfing/device_mode.c
         seatsurfing/epaper_pages.c
         seatsurfing/web_config.c
         seatsurfing/seatsurfing_flash.c
@@ -74,8 +75,20 @@ elseif(USE_CASE STREQUAL "weathermap")
         third_party/miniz/miniz_tinfl.c
     )
     set(UC_TRUST_STORE_HEADER "certs/trust_store_weathermap_pem.h")
+elseif(USE_CASE STREQUAL "nextcloud")
+    set(UC_SOURCES
+        nextcloud/client.c
+        nextcloud/epaper_pages.c
+        nextcloud/ical_text.c
+        nextcloud/log_upload.c
+        nextcloud/planer_parser.c
+        nextcloud/tasks_parser.c
+        nextcloud/tracker.c
+        nextcloud/tracker_parse.c
+    )
+    set(UC_TRUST_STORE_HEADER "")
 else()
-    message(FATAL_ERROR "Unknown USE_CASE '${USE_CASE}'. Valid: seatsurfing, historian, homematic, weathermap")
+    message(FATAL_ERROR "Unknown USE_CASE '${USE_CASE}'. Valid: seatsurfing, historian, homematic, weathermap, nextcloud")
 endif()
 message(STATUS "Use case: ${USE_CASE}, sources: ${UC_SOURCES}")
 
@@ -110,6 +123,9 @@ add_executable(inki_slot0
     sensors.c           # ADC sensors (battery, coin cell, temperature, strap pins)
     power.c             # Power hold, shutdown, gate control
     st25_io.c           # ST25 NFC bus adapter and wake logic
+    nfc_ndef.c          # Web address on the tag, read by phones without an app
+    net_update.c        # Firmware update over the network (buttons 3 + 4, --exp-net-update)
+    third_party/qrcodegen/qrcodegen.c # QR code for the setup page
     rv3028.c            # RV-3028 RTC driver (runtime backend support)
     rtc.c               # RTC facade (DS3231/RV-3028 backend abstraction)
     epaper.c            # ePaper hardware init, display, sleep
@@ -151,6 +167,9 @@ add_executable(inki_slot1
     sensors.c           # ADC sensors (battery, coin cell, temperature, strap pins)
     power.c             # Power hold, shutdown, gate control
     st25_io.c           # ST25 NFC bus adapter and wake logic
+    nfc_ndef.c          # Web address on the tag, read by phones without an app
+    net_update.c        # Firmware update over the network (buttons 3 + 4, --exp-net-update)
+    third_party/qrcodegen/qrcodegen.c # QR code for the setup page
     rv3028.c            # RV-3028 RTC driver (runtime backend support)
     rtc.c               # RTC facade (DS3231/RV-3028 backend abstraction)
     epaper.c            # ePaper hardware init, display, sleep
@@ -273,6 +292,11 @@ target_sources(inki_slot1 PRIVATE
 option(USB_BOOTLOADER_ENABLE "Enable USB support in bootloader" OFF)
 option(INKI_DEBUG_USB_WAIT "Enable debug USB wait helper in application startup" OFF)
 option(INKI_DEBUG_TLS_CB "Enable debug TLS callback helper in application TLS setup" OFF)
+option(INKI_DEBUG_TIMING "Log DNS, TLS and HTTP timing per wake" OFF)
+option(INKI_EXP_WIFI_PMK "Experiment: hand the radio a precomputed WPA2 key (see wifi.c)" OFF)
+option(INKI_LOG_UPLOAD "Nextcloud: upload the log of each wake to the tracker host" OFF)
+option(INKI_NET_UPDATE "Experiment: buttons 3 + 4 fetch new firmware from the update server" OFF)
+option(INKI_EXP_DHCP_REBOOT "Experiment: ask DHCP for the last address again (INIT-REBOOT)" OFF)
 
 if(USB_BOOTLOADER_ENABLE)
 pico_enable_stdio_usb(inki_bootloader 1)
@@ -301,6 +325,7 @@ target_link_libraries(inki_slot0
     hardware_i2c                   # I2C hardware support (ST25 bus adapter)
     hardware_adc                   # ADC hardware support
     pico_rand                      # Random number utilities
+    pico_unique_id                 # Board ID, source of the setup password
     pico_lwip
     pico_lwip_mbedtls
     pico_mbedtls
@@ -319,6 +344,7 @@ target_link_libraries(inki_slot1
     hardware_i2c                   # I2C hardware support (ST25 bus adapter)
     hardware_adc                   # ADC hardware support
     pico_rand                      # Random number utilities
+    pico_unique_id                 # Board ID, source of the setup password
     pico_lwip
     pico_lwip_mbedtls
     pico_mbedtls
@@ -351,7 +377,32 @@ if(INKI_DEBUG_TLS_CB)
     target_compile_definitions(inki_slot1 PRIVATE INKI_DEBUG_TLS_CB=1)
 endif()
 
-message(STATUS "Debug flags: INKI_DEBUG_USB_WAIT=${INKI_DEBUG_USB_WAIT}, INKI_DEBUG_TLS_CB=${INKI_DEBUG_TLS_CB}")
+if(INKI_DEBUG_TIMING)
+    target_compile_definitions(inki_slot0 PRIVATE INKI_DEBUG_TIMING=1)
+    target_compile_definitions(inki_slot1 PRIVATE INKI_DEBUG_TIMING=1)
+endif()
+
+if(INKI_EXP_WIFI_PMK)
+    target_compile_definitions(inki_slot0 PRIVATE INKI_EXP_WIFI_PMK=1)
+    target_compile_definitions(inki_slot1 PRIVATE INKI_EXP_WIFI_PMK=1)
+endif()
+
+if(INKI_LOG_UPLOAD)
+    target_compile_definitions(inki_slot0 PRIVATE INKI_LOG_UPLOAD=1)
+    target_compile_definitions(inki_slot1 PRIVATE INKI_LOG_UPLOAD=1)
+endif()
+
+if(INKI_NET_UPDATE)
+    target_compile_definitions(inki_slot0 PRIVATE INKI_NET_UPDATE=1)
+    target_compile_definitions(inki_slot1 PRIVATE INKI_NET_UPDATE=1)
+endif()
+
+if(INKI_EXP_DHCP_REBOOT)
+    target_compile_definitions(inki_slot0 PRIVATE INKI_EXP_DHCP_REBOOT=1)
+    target_compile_definitions(inki_slot1 PRIVATE INKI_EXP_DHCP_REBOOT=1)
+endif()
+
+message(STATUS "Debug flags: INKI_DEBUG_USB_WAIT=${INKI_DEBUG_USB_WAIT}, INKI_DEBUG_TLS_CB=${INKI_DEBUG_TLS_CB}, INKI_DEBUG_TIMING=${INKI_DEBUG_TIMING}, INKI_EXP_WIFI_PMK=${INKI_EXP_WIFI_PMK}, INKI_LOG_UPLOAD=${INKI_LOG_UPLOAD}, INKI_NET_UPDATE=${INKI_NET_UPDATE}, INKI_EXP_DHCP_REBOOT=${INKI_EXP_DHCP_REBOOT}")
 #[[
 target_link_libraries(inki_default_config
     pico_stdlib

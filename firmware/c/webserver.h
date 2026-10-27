@@ -39,6 +39,7 @@ typedef struct {
     char telemetry_label[32];
     char wifi_ssid[64];
     char wifi_password[64];
+    int wifi_region;
 
     // Optional bestehende Felder
     char text[128][MAX_FIELD_LENGTH];

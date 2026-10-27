@@ -1,6 +1,6 @@
 #!/bin/bash
 # -----------------------------------------------------------------------------
-# create_uf2.sh – Create UF2 file for inki firmware USB flashing
+# create_uf2.sh – Create UF2 file for Tinta firmware USB flashing
 #
 # Creates a combined UF2 file containing bootloader, slot0 firmware, and
 # default configuration for easy USB flashing without programmer/debugger.
@@ -28,16 +28,17 @@ case "$USE_CASE_LINE" in
   USE_CASE_SEATSURFING) CASE_SUFFIX="seatsurfing" ;;
   USE_CASE_HOMEMATIC)   CASE_SUFFIX="homematic" ;;
   USE_CASE_WEATHERMAP)  CASE_SUFFIX="weathermap" ;;
+  USE_CASE_NEXTCLOUD)   CASE_SUFFIX="nextcloud" ;;
   USE_CASE_NEW_USECASE) CASE_SUFFIX="new_usecase" ;;
 esac
-OUTPUT_FILE="$BUILD_DIR/inki_${CASE_SUFFIX}.uf2"
+OUTPUT_FILE="$BUILD_DIR/tinta_${CASE_SUFFIX}.uf2"
 
 # Memory addresses from linker scripts
 BOOTLOADER_ADDR=0x10000000
 
 # Note: bootloader.bin already contains Boot2 stage at the beginning
 
-echo "Creating UF2 file for inki firmware..."
+echo "Creating UF2 file for Tinta firmware..."
 
 # Download UF2 tools from Microsoft's repository if missing
 if [ ! -f "$UF2_TOOL" ]; then

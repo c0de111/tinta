@@ -16,12 +16,26 @@ typedef struct {
 } st25_inki_request_t;
 
 /* Opcode definitions — opcodes act as "soft pushbuttons" for page selection */
-#define ST25_OPCODE_REFRESH 0x01u    /* immediate refresh (page 0) */
-#define ST25_OPCODE_PAGE_0 0x11u     /* page 0: default / seatsurfing */
-#define ST25_OPCODE_PAGE_2 0x12u     /* page 2: universal decision maker */
-#define ST25_OPCODE_TEXT 0x20u       /* display text message from NFC EEPROM */
-#define ST25_OPCODE_DRAW_IMAGE 0x30u /* display drawn image from NFC EEPROM */
-#define ST25_OPCODE_BOOK_SEAT 0x40u  /* book a free seat on behalf of NFC user */
+#define ST25_OPCODE_REFRESH 0x01u     /* immediate refresh (page 0) */
+#define ST25_OPCODE_PAGE_0 0x11u      /* page 0: default / seatsurfing */
+#define ST25_OPCODE_PAGE_2 0x12u      /* page 2: universal decision maker */
+#define ST25_OPCODE_TEXT 0x20u        /* display text message from NFC EEPROM */
+#define ST25_OPCODE_DRAW_IMAGE 0x30u  /* display drawn image from NFC EEPROM */
+#define ST25_OPCODE_BOOK_SEAT 0x40u   /* book a free seat on behalf of NFC user */
+#define ST25_OPCODE_TRACK_VALUE 0x50u /* a number for the tracker series, as text */
+
+/*
+ * User EEPROM map (ST25DV04K, 512 bytes; larger tags only move the request slot).
+ * The regions overlap on purpose: text, image and web address are never needed at the same
+ * time, and the address is put back after an app request has used the space.
+ *
+ *   0x000 .. 0x07B   web address for phones without an app (nfc_ndef.h), header in 0x000..0x003
+ *   0x004 .. 0x007   nonce of the last processed request
+ *   0x008 ..         text payload, up to ST25_TEXT_MAX_LEN bytes
+ *   0x010 ..         image payload, ST25_IMAGE_BYTES bytes
+ *   last 16 bytes    request slot ("INKI", version, opcode, duration, time, nonce)
+ */
+#define ST25_SMALLEST_MEM_BYTES 512u
 
 /* Last-processed nonce (4 bytes) — for stale request deduplication */
 #define ST25_NONCE_ADDR 0x0004u
@@ -74,6 +88,14 @@ bool st25_clear_request(void);
  * Call after successfully processing an NFC request.
  */
 bool st25_save_processed_nonce(uint32_t nonce);
+
+/*
+ * Raw access to the user EEPROM, for callers that keep their own record there.
+ * Both fail if the tag was not found at boot; a write also fails while a phone
+ * holds the RF side busy for longer than the driver's write timeout.
+ */
+bool st25_read_bytes(uint16_t addr, uint8_t *buf, uint16_t len);
+bool st25_write_bytes(uint16_t addr, const uint8_t *buf, uint16_t len);
 
 /*
  * Power off ST25 VCC (set GP18 low). Call before power-down.

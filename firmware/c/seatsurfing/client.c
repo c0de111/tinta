@@ -1,5 +1,6 @@
 #include "seatsurfing/client.h"
 #include "base64.h"
+#include "hardware/watchdog.h"
 #include "seatsurfing/web_config.h"
 #define LOG_MODULE LOG_MOD_SEATSURFING
 #include "boot_input.h"
@@ -9,6 +10,7 @@
 #include "lwip/ip_addr.h"
 #include "pico/stdlib.h"
 #include "rtc.h"
+#include "seatsurfing/device_mode.h"
 #include "seatsurfing/epaper_pages.h"
 #include "seatsurfing/seatsurfing_flash.h"
 #include "st25_io.h"
@@ -21,10 +23,24 @@
 #include <stdio.h>
 #include <string.h>
 
+// How long the sign waits after a tap for a booking made on the phone, and the pause between
+// two questions (a sync itself takes ~1.6 s with TLS).
+#ifndef SS_FOLLOW_S
+#define SS_FOLLOW_S 60
+#endif
+#ifndef SS_FOLLOW_PAUSE_MS
+#define SS_FOLLOW_PAUSE_MS 2000
+#endif
+#ifndef FOLLOW_POWER_SAVE
+#define FOLLOW_POWER_SAVE 1
+#endif
+
 // --- Parsed data storage ---
 
 seat_info_t seatsurfing_data[SEATSURFING_MAX_SEATS] = {0};
+static ss_view_t s_view;
 static run_error_t s_last_run_error = RUN_OK;
+static char s_booking_url[SS_BOOKING_URL_LEN]; // from this wake's sync
 
 static seat_info_t seatsurfing_parse_seat_info(const char *json,
                                                const char *target_space_id_or_name);
@@ -577,7 +593,119 @@ static const input_map_entry_t ss_input_map[] = {
 
 // --- Lifecycle: run (fetch) and render ---
 
-static bool seatsurfing_make_request(void) {
+static void ss_set_notice(const char *title, const char *detail, const char *tip) {
+    s_view.kind = SS_VIEW_NOTICE;
+    s_view.notice_title = title;
+    s_view.notice_detail = detail;
+    s_view.notice_tip = tip;
+}
+
+// The largest office layout (7.5") has three seats; the 4.2" shows the first one.
+#define SS_DEVICE_MAX_SEATS 3
+
+// In device mode the server owns the display name and the spaces the sign shows.
+// Mirrors both into the device config so every page uses them; writes only on a change.
+static void ss_apply_server_config(const char *name, uint8_t seat_count) {
+    char title[sizeof(device_config_flash.data.roomname)];
+    snprintf(title, sizeof(title), "%s", name);
+    if (strlen(name) >= sizeof(title))
+        title[sizeof(title) - 2] = '.';
+
+    bool title_changed = title[0] && strcmp(title, device_config_flash.data.roomname) != 0;
+    if (!title_changed && device_config_flash.data.number_of_seats == seat_count)
+        return;
+
+    device_config_t cfg = device_config_flash;
+    if (title_changed) {
+        memset(cfg.data.roomname, 0, sizeof(cfg.data.roomname));
+        strcpy(cfg.data.roomname, title);
+    }
+    cfg.data.number_of_seats = seat_count;
+    save_device_config(&cfg);
+    debug_status("INFO", "SeatSurfing: display name from server: %s\n", cfg.data.roomname);
+}
+
+static ss_device_result_t ss_device_sync(const ip_addr_t *ip, ss_device_sync_t *sync) {
+    return ss_device_mode_run(ip, seatsurfing_config_flash.data.port,
+                              seatsurfing_config_flash.data.host,
+                              device_config_flash.data.max_wait_data_wifi * 50, sync);
+}
+
+// A phone held to the sign has the booking dialog open. Seatsurfing does not tell when it is
+// confirmed, so the sign asks again until one of its spaces changes or the time is up. The
+// radio is on all the while anyway, so a short pause costs little and shows the booking sooner.
+static bool ss_seats_changed(const seat_info_t *before, uint8_t count_before,
+                             const ss_device_sync_t *now) {
+    if (now->seat_count != count_before)
+        return true;
+    for (uint8_t i = 0; i < count_before; i++) {
+        if (now->seats[i].is_available != before[i].is_available ||
+            strcmp(now->seats[i].user_email, before[i].user_email) != 0)
+            return true;
+    }
+    return false;
+}
+
+static void ss_follow_booking(const ip_addr_t *ip, ss_device_sync_t *sync) {
+    seat_info_t first[SS_DEVICE_MAX_SEATS];
+    const uint8_t first_count = sync->seat_count;
+    memcpy(first, sync->seats, first_count * sizeof(first[0]));
+    const absolute_time_t t0 = get_absolute_time();
+    bool changed = false;
+    wifi_set_power_save(FOLLOW_POWER_SAVE);
+    while (!changed && absolute_time_diff_us(t0, get_absolute_time()) < SS_FOLLOW_S * 1000000LL) {
+        for (int i = 0; i < SS_FOLLOW_PAUSE_MS / 100; i++) {
+            sleep_ms(100);
+            watchdog_update();
+        }
+        ss_device_sync_t next = {.seats = sync->seats, .max_seats = sync->max_seats};
+        if (ss_device_sync(ip, &next) != SS_DEVICE_SYNCED)
+            break; // the seats still hold the last answer that came through
+        *sync = next;
+        changed = ss_seats_changed(first, first_count, sync);
+    }
+    wifi_set_power_save(false);
+    debug_status("INFO", "SeatSurfing: %s after %d ms of waiting\n",
+                 changed ? "change" : "no change",
+                 (int)(absolute_time_diff_us(t0, get_absolute_time()) / 1000));
+}
+
+static bool ss_device_mode_fetch(const ip_addr_t *ip, bool follow) {
+    ss_device_sync_t sync = {.seats = seatsurfing_data, .max_seats = SS_DEVICE_MAX_SEATS};
+    ss_device_result_t result = ss_device_sync(ip, &sync);
+    debug_status(result == SS_DEVICE_ERROR ? "ERROR" : "INFO", "SeatSurfing: device mode -> %d\n",
+                 (int)result);
+
+    switch (result) {
+    case SS_DEVICE_SYNCED:
+        if (follow && SS_FOLLOW_S > 0)
+            ss_follow_booking(ip, &sync);
+        ss_apply_server_config(sync.name, sync.seat_count);
+        s_view.next_wake_s = sync.next_sync_s;
+        memcpy(s_booking_url, sync.booking_url, sizeof(s_booking_url));
+        return true;
+    case SS_DEVICE_PENDING:
+        s_view.kind = SS_VIEW_CLAIM;
+        ss_device_claim_code(s_view.claim_code, sizeof(s_view.claim_code));
+        snprintf(s_view.device_name, sizeof(s_view.device_name), "%s", wifi_setup_ssid());
+        return true;
+    case SS_DEVICE_READOPT:
+        ss_set_notice("Re-adopt device", "Its credentials are lost", "Delete and adopt it again.");
+        return true;
+    case SS_DEVICE_DISABLED:
+        ss_set_notice("Device disabled", "Disabled by an administrator",
+                      "Enable it in Seatsurfing.");
+        return true;
+    case SS_DEVICE_NO_PLUGIN:
+        ss_set_notice("No device mode", "Server lacks the Plus plugin", "Turn off device mode.");
+        return true;
+    default:
+        s_last_run_error = RUN_ERROR_CONNECTION;
+        return false;
+    }
+}
+
+static bool seatsurfing_make_request(bool follow) {
     ip_addr_t ip;
     bool use_dns =
         (seatsurfing_config_flash.data.ip[0] == 0 && seatsurfing_config_flash.data.ip[1] == 0 &&
@@ -599,6 +727,9 @@ static bool seatsurfing_make_request(void) {
     if (nfc_booking_email[0]) {
         return ss_do_booking(&ip, use_dns);
     }
+
+    if (seatsurfing_config_flash.data.device_mode == 1)
+        return ss_device_mode_fetch(&ip, follow);
 
     const char *host = seatsurfing_config_flash.data.host;
     const char *location_id = seatsurfing_config_flash.data.location_id;
@@ -653,16 +784,26 @@ static int ss_error_page(void) {
     }
 }
 
-static run_result_t ss_run(void) {
+static run_result_t ss_run(int page, int input) {
+    (void)page;
     s_last_run_error = RUN_OK;
+    s_view = (ss_view_t){.kind = SS_VIEW_SEATS};
     tls_init();
-    if (seatsurfing_make_request())
-        return (run_result_t){.data = seatsurfing_data};
+    if (seatsurfing_make_request(input == INPUT_NFC_READ))
+        return (run_result_t){.data = &s_view};
     return (run_result_t){.error_page = ss_error_page()};
 }
 
 static void ss_render(uint8_t *image, device_caps_t caps, int page, const void *data) {
-    (void)caps;
+    const ss_view_t *view = data;
+    if (view && page == SS_PAGE_SEATSURFING && view->kind == SS_VIEW_CLAIM) {
+        render_page_ss_claim(image, caps, view->claim_code, view->device_name);
+        return;
+    }
+    if (view && page == SS_PAGE_SEATSURFING && view->kind == SS_VIEW_NOTICE) {
+        render_page_error(image, view->notice_title, view->notice_detail, view->notice_tip);
+        return;
+    }
     if (page == PAGE_WIFI_ERROR) {
         debug_status("ERROR", "SeatSurfing: showing WiFi error page\n");
         render_page_error(image, "WiFi Error!", "Unable to connect to WiFi",
@@ -706,6 +847,17 @@ static void ss_render(uint8_t *image, device_caps_t caps, int page, const void *
         render_page_fallback(page, image);
 }
 
+static uint32_t ss_next_wake_s(const void *data) {
+    const ss_view_t *view = data;
+    return view ? view->next_wake_s : 0;
+}
+
+// The booking link of the sign while its spaces are on the panel; without a sync in this wake
+// the tag keeps what it has.
+static const char *ss_page_url(int page) {
+    return page == SS_PAGE_SEATSURFING && s_booking_url[0] ? s_booking_url : NULL;
+}
+
 const use_case_t use_case = {
     .name = "seatsurfing",
     .pages = ss_pages,
@@ -714,6 +866,8 @@ const use_case_t use_case = {
     .run = ss_run,
     .render = ss_render,
     .free_data = NULL,
+    .page_url = ss_page_url,
+    .next_wake_s = ss_next_wake_s,
     .render_config_page = ss_render_config_page,
     .handle_config_form = ss_handle_config_form,
     .needs_4gray = false,

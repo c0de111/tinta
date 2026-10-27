@@ -5,6 +5,11 @@
 #include <stdint.h>
 
 float read_battery_voltage(float conversion_factor);
+
+// Reads the battery and keeps the value as this wake's reference sample. Call before WiFi
+// comes up: the radio pulls the cells down, later reads are lower.
+float read_boot_battery_voltage(float conversion_factor);
+float boot_battery_voltage(void);
 float read_coin_cell_voltage(float conversion_factor);
 float read_onchip_temperature_c(void);
 uint8_t read_strap_pins(void);

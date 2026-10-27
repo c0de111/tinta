@@ -20,7 +20,12 @@ typedef struct {
     // NFC booking (opcode 0x40) — SpaceAdmin user credentials for JWT login
     char booking_email[64];
     char booking_password[64];
+    // 1 = enroll via claim code and use the Plus plugin's device endpoint. Occupies the former
+    // trailing padding byte, so the stored layout is unchanged.
+    uint8_t device_mode;
 } seatsurfing_config_data_t;
+_Static_assert(sizeof(seatsurfing_config_data_t) == 648,
+               "seatsurfing_config_data_t layout changed");
 
 // Duration for NFC-triggered bookings (hard-coded for now, adjustable via app later)
 #define SEATSURFING_BOOKING_DURATION_S (8 * 3600)

@@ -54,7 +54,7 @@ static void format_settings_version_tag(char *out, size_t out_len) {
         cleaned[sizeof(cleaned) - 1] = '\0';
     }
 
-    snprintf(out, out_len, "inki_settings_v%s", cleaned);
+    snprintf(out, out_len, "tinta_settings_v%s", cleaned);
 }
 
 static void format_settings_export_date(char *out, size_t out_len) {
@@ -331,11 +331,11 @@ void build_settings_export_txt(char *buf, size_t sz, char *disposition, size_t d
 
     format_settings_version_tag(settings_tag, sizeof(settings_tag));
     format_settings_export_date(settings_date, sizeof(settings_date));
-    snprintf(download_name, sizeof(download_name), "inki_settings_%s_%s.txt", use_case.name,
+    snprintf(download_name, sizeof(download_name), "tinta_settings_%s_%s.txt", use_case.name,
              settings_date);
     snprintf(disposition, disp_sz, "attachment; filename=\"%s\"", download_name);
     const uint8_t *mac = wifi_mac();
-    snprintf(source_device_id, sizeof(source_device_id), "inki-%02X%02X%02X%02X%02X%02X", mac[0],
+    snprintf(source_device_id, sizeof(source_device_id), "tinta-%02X%02X%02X%02X%02X%02X", mac[0],
              mac[1], mac[2], mac[3], mac[4], mac[5]);
     strncpy(exported_at, "unknown", sizeof(exported_at) - 1);
     exported_at[sizeof(exported_at) - 1] = '\0';
@@ -358,6 +358,8 @@ void build_settings_export_txt(char *buf, size_t sz, char *disposition, size_t d
     off += (size_t)snprintf(buf + off, sz - off, "\n");
     off += (size_t)snprintf(buf + off, sz - off, "wifi.ssid=%s\n", wifi_config_flash.ssid);
     off += (size_t)snprintf(buf + off, sz - off, "wifi.password=%s\n", wifi_config_flash.password);
+    off += (size_t)snprintf(buf + off, sz - off, "wifi.region=%s\n",
+                            wifi_region_key(wifi_config_region(&wifi_config_flash)));
     off += (size_t)snprintf(buf + off, sz - off, "\n");
     off += (size_t)snprintf(buf + off, sz - off, "device.roomname=%s\n",
                             device_config_flash.data.roomname);
@@ -434,6 +436,8 @@ void build_settings_export_txt(char *buf, size_t sz, char *disposition, size_t d
                             seatsurfing_config_flash.data.booking_email);
     off += (size_t)snprintf(buf + off, sz - off, "seatsurfing.booking_password=%s\n",
                             seatsurfing_config_flash.data.booking_password);
+    off += (size_t)snprintf(buf + off, sz - off, "seatsurfing.device_mode=%u\n",
+                            seatsurfing_config_flash.data.device_mode == 1 ? 1u : 0u);
 #elif defined(USE_CASE_HISTORIAN)
     off += (size_t)snprintf(buf + off, sz - off, "historian.ip=%u.%u.%u.%u\n",
                             historian_config_flash.data.ip[0], historian_config_flash.data.ip[1],
@@ -473,7 +477,7 @@ void build_settings_export_txt(char *buf, size_t sz, char *disposition, size_t d
 }
 
 void handle_form_settings_import(const char *body, size_t len, char *buf, size_t sz) {
-    static const char *const wifi_keys[] = {"wifi.ssid", "wifi.password"};
+    static const char *const wifi_keys[] = {"wifi.ssid", "wifi.password", "wifi.region"};
     static const char *const device_keys[] = {
         "device.roomname",
         "device.type",
@@ -531,10 +535,20 @@ void handle_form_settings_import(const char *body, size_t len, char *buf, size_t
     size_t use_key_count = 0;
 #if defined(USE_CASE_SEATSURFING)
     static const char *const use_keys_seatsurfing[] = {
-        "seatsurfing.host",       "seatsurfing.username", "seatsurfing.password",
-        "seatsurfing.ip",         "seatsurfing.port",     "seatsurfing.location_id",
-        "seatsurfing.seat_count", "seatsurfing.space1",   "seatsurfing.space2",
-        "seatsurfing.space3",     "seatsurfing.space4",
+        "seatsurfing.host",
+        "seatsurfing.username",
+        "seatsurfing.password",
+        "seatsurfing.ip",
+        "seatsurfing.port",
+        "seatsurfing.location_id",
+        "seatsurfing.seat_count",
+        "seatsurfing.space1",
+        "seatsurfing.space2",
+        "seatsurfing.space3",
+        "seatsurfing.space4",
+        "seatsurfing.booking_email",
+        "seatsurfing.booking_password",
+        "seatsurfing.device_mode",
     };
     use_key_count = sizeof(use_keys_seatsurfing) / sizeof(use_keys_seatsurfing[0]);
     for (size_t i = 0; i < use_key_count; i++) {
@@ -602,7 +616,8 @@ void handle_form_settings_import(const char *body, size_t len, char *buf, size_t
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
-        if (strcmp(line, "INKI_SETTINGS_V1") == 0 || strncmp(line, "inki_settings_v", 15) == 0) {
+        if (strcmp(line, "INKI_SETTINGS_V1") == 0 || strncmp(line, "inki_settings_v", 15) == 0 ||
+            strncmp(line, "tinta_settings_v", 16) == 0) {
             line = strtok_r(NULL, "\n", &saveptr);
             continue;
         }
@@ -661,6 +676,10 @@ void handle_form_settings_import(const char *body, size_t len, char *buf, size_t
         } else if (strcmp(key, "wifi.password") == 0) {
             strncpy(new_wifi.password, val, sizeof(new_wifi.password) - 1);
             new_wifi.password[sizeof(new_wifi.password) - 1] = '\0';
+        } else if (strcmp(key, "wifi.region") == 0) {
+            const int region = wifi_region_from_key(val);
+            new_wifi.region = (uint8_t)(region >= 0 ? region : atoi(val)); // files before 10-2026
+            new_wifi.region_check = new_wifi.region ^ WIFI_REGION_CHECK;
         } else if (strcmp(key, "device.roomname") == 0) {
             strncpy(new_dev.data.roomname, val, sizeof(new_dev.data.roomname) - 1);
             new_dev.data.roomname[sizeof(new_dev.data.roomname) - 1] = '\0';
@@ -773,6 +792,8 @@ void handle_form_settings_import(const char *body, size_t len, char *buf, size_t
         } else if (strcmp(key, "seatsurfing.booking_password") == 0) {
             strncpy(new_use.data.booking_password, val, sizeof(new_use.data.booking_password) - 1);
             new_use.data.booking_password[sizeof(new_use.data.booking_password) - 1] = '\0';
+        } else if (strcmp(key, "seatsurfing.device_mode") == 0) {
+            new_use.data.device_mode = (val[0] == '1');
 #elif defined(USE_CASE_HISTORIAN)
         } else if (strcmp(key, "historian.ip") == 0) {
             if (!parse_ipv4_value(val, new_use.data.ip)) {

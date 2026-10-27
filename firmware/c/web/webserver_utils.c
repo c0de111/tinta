@@ -171,6 +171,8 @@ void parse_form_fields(const char *body, size_t len, web_submission_t *result) {
             strncpy(result->telemetry_label, value_buf, sizeof(result->telemetry_label) - 1);
         } else if (key_len == 9 && strncmp(key, "wifi_ssid", 9) == 0) {
             strncpy(result->wifi_ssid, value_buf, sizeof(result->wifi_ssid) - 1);
+        } else if (key_len == 11 && strncmp(key, "wifi_region", 11) == 0) {
+            result->wifi_region = atoi(value_buf);
         } else if (key_len == 13 && strncmp(key, "wifi_password", 13) == 0) {
             strncpy(result->wifi_password, value_buf, sizeof(result->wifi_password) - 1);
         }

@@ -7,6 +7,7 @@
 #include "debug.h"
 #include "lwip/altcp_tls.h"
 #include "mbedtls/ssl.h"
+#include "pico/time.h"
 #if INKI_DEBUG_TLS_CB
 #include "mbedtls/debug.h"
 #endif
@@ -45,12 +46,41 @@ void tls_init(void) {
 
 struct altcp_tls_config *tls_get_client_config(void) { return s_tls_cfg; }
 
+#if INKI_DEBUG_TIMING
+static uint32_t s_verify_done_ms;
+static int s_chain_length;
+static uint32_t s_verify_flags;
+
+// mbedTLS calls this once per certificate after the whole chain has been checked, leaf last.
+// cppcheck-suppress constParameterCallback
+static int timing_verify_cb(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags) {
+    (void)data;
+    (void)crt;
+    s_verify_done_ms = to_ms_since_boot(get_absolute_time());
+    if (depth + 1 > s_chain_length)
+        s_chain_length = depth + 1;
+    s_verify_flags |= *flags;
+    return 0;
+}
+
+uint32_t tls_timing_verify_done_ms(void) { return s_verify_done_ms; }
+int tls_timing_chain_length(void) { return s_chain_length; }
+uint32_t tls_timing_verify_flags(void) { return s_verify_flags; }
+#endif
+
 void tls_apply_sni(struct altcp_pcb *pcb, const char *hostname) {
     if (!pcb || !hostname || hostname[0] == '\0')
         return;
     void *ctx = altcp_tls_context(pcb);
-    if (ctx)
+    if (ctx) {
         mbedtls_ssl_set_hostname((mbedtls_ssl_context *)ctx, hostname);
+#if INKI_DEBUG_TIMING
+        s_verify_done_ms = 0;
+        s_chain_length = 0;
+        s_verify_flags = 0;
+        mbedtls_ssl_set_verify((mbedtls_ssl_context *)ctx, timing_verify_cb, NULL);
+#endif
+    }
 }
 
 #else // !TRUST_STORE_HEADER — stubs for use cases that don't need TLS
@@ -61,5 +91,11 @@ void tls_apply_sni(struct altcp_pcb *pcb, const char *hostname) {
     (void)pcb;
     (void)hostname;
 }
+
+#if INKI_DEBUG_TIMING
+uint32_t tls_timing_verify_done_ms(void) { return 0; }
+int tls_timing_chain_length(void) { return 0; }
+uint32_t tls_timing_verify_flags(void) { return 0; }
+#endif
 
 #endif // TRUST_STORE_HEADER

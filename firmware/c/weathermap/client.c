@@ -151,7 +151,7 @@ static int bkg_build_http_get(char *dst, size_t dst_len) {
         return -1;
     int n = snprintf(
         dst, dst_len,
-        "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: inki/weathermap\r\nConnection: close\r\n\r\n",
+        "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Tinta/weathermap\r\nConnection: close\r\n\r\n",
         path, BKG_HOST);
     return (n > 0 && (size_t)n < dst_len) ? n : -1;
 }
@@ -177,7 +177,7 @@ static int dwd_build_http_get(char *dst, size_t dst_len) {
         return -1;
     int n = snprintf(
         dst, dst_len,
-        "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: inki/geodata\r\nConnection: close\r\n\r\n",
+        "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: Tinta/geodata\r\nConnection: close\r\n\r\n",
         path, DWD_HOST);
     return (n > 0 && (size_t)n < dst_len) ? n : -1;
 }
@@ -666,7 +666,9 @@ static const input_map_entry_t wm_input_map[] = {
 
 // --- Lifecycle: run (fetch) and render ---
 
-static run_result_t wm_run(void) {
+static run_result_t wm_run(int page, int input) {
+    (void)page;
+    (void)input;
     s_last_run_error = RUN_OK;
     tls_init();
     wm_fetch_ok = false;

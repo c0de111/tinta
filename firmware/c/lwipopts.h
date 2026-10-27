@@ -54,6 +54,32 @@
 #define DHCP_DOES_ARP_CHECK 0
 #define LWIP_DHCP_DOES_ACD_CHECK 0
 
+// A lost DHCP discover is retried after 0.5 s instead of lwIP's 2, 4, 8 s: a fresh association
+// sometimes drops the first one, and every wait is radio-on time. Seven short waits, because
+// wifi.c spends up to three tries on early repeats. Setting the switch replaces
+// lwIP's whole timeout block, so the lease macros are repeated here unchanged (dhcp.c).
+#define DHCP_DEFINE_CUSTOM_TIMEOUTS 1
+#define DHCP_REQUEST_BACKOFF_SEQUENCE(tries)                                                       \
+    (u16_t)((tries) < 8 ? 500 : ((tries) < 12 ? 2000 : 60000))
+#define SET_TIMEOUT_FROM_OFFERED(result, offered, min, max)                                        \
+    do {                                                                                           \
+        u32_t timeout = (offered + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS;           \
+        if (timeout > max) {                                                                       \
+            timeout = max;                                                                         \
+        }                                                                                          \
+        if (timeout == min) {                                                                      \
+            timeout = 1;                                                                           \
+        }                                                                                          \
+        result = (dhcp_timeout_t)timeout;                                                          \
+    } while (0)
+#define DHCP_SET_TIMEOUT_FROM_OFFERED_T0_LEASE(res, dhcp)                                          \
+    SET_TIMEOUT_FROM_OFFERED(res, (dhcp)->offered_t0_lease, 0, 0xffff)
+#define DHCP_SET_TIMEOUT_FROM_OFFERED_T1_RENEW(res, dhcp)                                          \
+    SET_TIMEOUT_FROM_OFFERED(res, (dhcp)->offered_t1_renew, 0, 0xffff)
+#define DHCP_SET_TIMEOUT_FROM_OFFERED_T2_REBIND(res, dhcp)                                         \
+    SET_TIMEOUT_FROM_OFFERED(res, (dhcp)->offered_t2_rebind, 0, 0xffff)
+#define DHCP_NEXT_TIMEOUT_THRESHOLD ((60 + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS)
+
 #ifndef NDEBUG
 #define LWIP_DEBUG 1
 #define LWIP_STATS 1

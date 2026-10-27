@@ -1,5 +1,6 @@
 #include "rtc.h"
 #include "config.h"
+#include "version.h"
 #define LOG_MODULE LOG_MOD_RTC
 #include "debug.h"
 #include "ds3231.h"
@@ -9,6 +10,7 @@
 #include "rv3028.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef enum {
@@ -164,6 +166,12 @@ bool rtc_parse_http_date(const char *header, rtc_time_t *out) {
     return true;
 }
 
+int32_t rtc_local_utc_offset_s(void) {
+    rtc_time_t now = {0};
+    rtc_read_time(&now);
+    return (RTC_TIMEZONE_OFFSET_H + (rtc_is_dst_europe(&now) ? 1 : 0)) * 3600;
+}
+
 void rtc_format_time(const rtc_time_t *t, char *buffer, size_t buffer_size) {
     int display_hour = t->hours;
     if (rtc_is_dst_europe(t))
@@ -222,7 +230,20 @@ void rtc_init(const i2c_probe_result_t *probe) {
     if (rv3028_present) {
         if (rv3028_init(&rv3028_ctx, i2c_default, RV3028_ADDR_DEFAULT) == 0) {
             active_rtc_backend = RTC_BACKEND_RV3028;
-            debug_status("OK", "RTC: RV-3028\n");
+            // PORF: the RTC lost power since the last start; BSF: it ran on VBACKUP meanwhile.
+            rtc_time_t t = {0};
+            const int rc = rtc_read_time(&t);
+            const uint8_t st = rv3028_ctx.boot_status;
+            debug_status("OK", "RTC: RV-3028, %s20%02u-%02u-%02u %02u:%02u:%02u%s%s%s\n",
+                         rc ? "read failed " : "", t.year, t.month, t.date, t.hours, t.minutes,
+                         t.seconds, (st & 0x01u) ? ", lost power" : "",
+                         (st & 0x20u) ? ", ran on backup" : "",
+                         rv3028_ctx.switchover_eeprom_fixed ? ", backup switch-over stored" : "");
+            if (!rv3028_ctx.switchover_ram)
+                debug_status("ERROR",
+                             "RTC: backup switch-over not set (0x37 = 0x%02X, EEPROM %d)\n",
+                             rv3028_ctx.boot_backup, rv3028_ctx.boot_backup_eeprom);
+            rv3028_clear_power_flags(&rv3028_ctx);
             return;
         }
         debug_status("ERROR", "RV-3028 detected but init failed\n");
@@ -424,7 +445,35 @@ void rtc_set_time_from_string(const char *line) {
     rtc_set_time(&new_time);
 }
 
-void rtc_set_alarm(int page) {
+// Arms the daily alarm for hour:minute in RTC time (no DST).
+static void program_alarm(int hour, int minute) {
+    if (active_rtc_backend == RTC_BACKEND_RV3028) {
+        int rc = rv3028_set_daily_alarm_hour_minute(&rv3028_ctx, (uint8_t)hour, (uint8_t)minute);
+        if (rc != 0)
+            debug_status("ERROR", "RV-3028 alarm setup failed (rc=%d)\n", rc);
+
+        rc = rv3028_enable_alarm_interrupt(&rv3028_ctx, true);
+        if (rc != 0)
+            debug_status("ERROR", "RV-3028 alarm interrupt enable failed (rc=%d)\n", rc);
+
+        rc = rv3028_clear_alarm_flag(&rv3028_ctx);
+        if (rc != 0)
+            debug_status("ERROR", "RV-3028 alarm flag clear failed (rc=%d)\n", rc);
+
+        dlog("RV-3028 alarm set for %02d:%02d (RTC time)\n", hour, minute);
+    } else {
+        ds3231_alarm_2_t alarm2 = {
+            .minutes = minute, .hours = hour, .date = 0, .day = 0, .am_pm = false};
+
+        ds3231_enable_alarm_interrupt(&ds3231_ctx, true);
+        ds3231_set_alarm_2(&ds3231_ctx, &alarm2, ON_MATCHING_MINUTE_AND_HOUR);
+        dlog("Alarm2 set for %02d:%02d (RTC time)\n", alarm2.hours, alarm2.minutes);
+
+        ds3231_clear_alarm2(&ds3231_ctx);
+    }
+}
+
+void rtc_set_alarm(int page, int minutes) {
     if (active_rtc_backend == RTC_BACKEND_NONE) {
         debug_status("WARN", "No RTC: skipping alarm\n");
         return;
@@ -444,7 +493,8 @@ void rtc_set_alarm(int page) {
             day = (day % 7) + 1;
     }
 
-    int refresh = device_config_flash.data.refresh_minutes_by_pushbutton[page & 0x07];
+    int refresh =
+        minutes > 0 ? minutes : device_config_flash.data.refresh_minutes_by_pushbutton[page & 0x07];
     int total_minutes = local_hour * 60 + local_minute + refresh;
     int alarm_hour = (total_minutes / 60) % 24;
     int alarm_minute = total_minutes % 60;
@@ -468,34 +518,35 @@ void rtc_set_alarm(int page) {
     if (dst_active)
         alarm_hour = dst_adjust_hour(alarm_hour, false);
 
-    if (active_rtc_backend == RTC_BACKEND_RV3028) {
-        int rc = rv3028_set_daily_alarm_hour_minute(&rv3028_ctx, (uint8_t)alarm_hour,
-                                                    (uint8_t)alarm_minute);
-        if (rc != 0)
-            debug_status("ERROR", "RV-3028 alarm setup failed (rc=%d)\n", rc);
+    program_alarm(alarm_hour, alarm_minute);
 
-        rc = rv3028_enable_alarm_interrupt(&rv3028_ctx, true);
-        if (rc != 0)
-            debug_status("ERROR", "RV-3028 alarm interrupt enable failed (rc=%d)\n", rc);
+    debug_status("OK", "Next wake: %02d:%02d (+%d min%s)\n", wake_hour_local, wake_minute_local,
+                 refresh, minutes > 0 ? ", Wi-Fi back-off" : "");
+}
 
-        rc = rv3028_clear_alarm_flag(&rv3028_ctx);
-        if (rc != 0)
-            debug_status("ERROR", "RV-3028 alarm flag clear failed (rc=%d)\n", rc);
-
-        dlog("RV-3028 alarm set for %02d:%02d (RTC time)\n", alarm_hour, alarm_minute);
-    } else {
-        ds3231_alarm_2_t alarm2 = {
-            .minutes = alarm_minute, .hours = alarm_hour, .date = 0, .day = 0, .am_pm = false};
-
-        ds3231_enable_alarm_interrupt(&ds3231_ctx, true);
-        ds3231_set_alarm_2(&ds3231_ctx, &alarm2, ON_MATCHING_MINUTE_AND_HOUR);
-        dlog("Alarm2 set for %02d:%02d (RTC time)\n", alarm2.hours, alarm2.minutes);
-
-        ds3231_clear_alarm2(&ds3231_ctx);
+void rtc_set_alarm_in(uint32_t seconds) {
+    if (active_rtc_backend == RTC_BACKEND_NONE) {
+        debug_status("WARN", "No RTC: skipping alarm\n");
+        return;
     }
 
-    debug_status("OK", "Next wake: %02d:%02d (+%d min)\n", wake_hour_local, wake_minute_local,
-                 refresh);
+    // The alarm matches on hour:minute only, so the target is rounded to the nearest full
+    // minute. It is never armed less than 60 s ahead, so the match cannot slip past while it
+    // is being set.
+    rtc_time_t now;
+    rtc_read_time(&now);
+    uint32_t minutes_ahead = (now.seconds + seconds + 30) / 60;
+    if (minutes_ahead * 60 < now.seconds + 60u)
+        minutes_ahead = (now.seconds + 60u + 59) / 60;
+    uint32_t total_minutes = now.hours * 60u + now.minutes + minutes_ahead;
+    int alarm_hour = (int)((total_minutes / 60) % 24);
+    int alarm_minute = (int)(total_minutes % 60);
+
+    program_alarm(alarm_hour, alarm_minute);
+
+    int wake_hour_local = rtc_is_dst_europe(&now) ? dst_adjust_hour(alarm_hour, true) : alarm_hour;
+    debug_status("OK", "Next wake: %02d:%02d (+%lu min, set by use case)\n", wake_hour_local,
+                 alarm_minute, (unsigned long)minutes_ahead);
 }
 
 void rtc_disable_alarm(void) {
@@ -508,10 +559,60 @@ void rtc_disable_alarm(void) {
     }
 }
 
+// Days since 1970-01-01 in the proleptic Gregorian calendar.
+static int64_t days_from_civil(int year, int month, int day) {
+    year -= month <= 2;
+    int64_t era = (year >= 0 ? year : year - 399) / 400;
+    int year_of_era = (int)(year - era * 400);
+    int day_of_year = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+    int day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    return era * 146097 + day_of_era - 719468;
+}
+
+bool rtc_parse_iso8601(const char *text, int64_t *epoch_s) {
+    int year, month, day, hour, minute, second, consumed = 0;
+    if (!text || sscanf(text, "%4d-%2d-%2dT%2d:%2d:%2d%n", &year, &month, &day, &hour, &minute,
+                        &second, &consumed) != 6)
+        return false;
+
+    const char *p = text + consumed;
+    if (*p == '.') {
+        p++;
+        while (*p >= '0' && *p <= '9')
+            p++;
+    }
+
+    int offset_s = 0;
+    if (*p == '+' || *p == '-') {
+        int offset_h, offset_min;
+        if (sscanf(p + 1, "%2d:%2d", &offset_h, &offset_min) != 2)
+            return false;
+        offset_s = (offset_h * 3600 + offset_min * 60) * (*p == '+' ? 1 : -1);
+    } else if (*p != 'Z') {
+        return false;
+    }
+
+    *epoch_s =
+        days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset_s;
+    return true;
+}
+
 static int64_t rtc_time_to_seconds(const rtc_time_t *t) {
     int64_t days = (int64_t)(t->year + 2000) * 365 + (t->year + 2000) / 4 + t->date;
     days += (int64_t)t->month * 30;
     return days * 86400 + (int64_t)t->hours * 3600 + (int64_t)t->minutes * 60 + t->seconds;
+}
+
+bool rtc_time_plausible(void) {
+    rtc_time_t t = {0};
+    if (active_rtc_backend == RTC_BACKEND_NONE || rtc_read_time(&t) != 0)
+        return false;
+    // build_date starts "YYYY-MM-DD"; the clock keeps local time, so allow the day before.
+    const char *b = build_date;
+    const long built =
+        strtol(b, NULL, 10) * 10000 + strtol(b + 5, NULL, 10) * 100 + strtol(b + 8, NULL, 10);
+    const long now = (2000L + t.year) * 10000 + t.month * 100L + t.date;
+    return now >= built - 1;
 }
 
 void rtc_sync_from_server(void) {

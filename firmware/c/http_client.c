@@ -1,4 +1,5 @@
 #include "http_client.h"
+#include "config.h"
 #define LOG_MODULE LOG_MOD_HTTP
 #include "debug.h"
 
@@ -75,6 +76,19 @@ static http_session_t g_session = {0};
 static int s_body_progress_pct = PROGRESS_PCT_UNSET;
 static int g_last_status_code = 0; // last HTTP status code received; 0 = no response yet
 
+#if INKI_DEBUG_TIMING
+// Filled from the lwIP callbacks, printed from thread context once the request has finished.
+static struct {
+    uint32_t start_ms;     // altcp_connect issued
+    uint32_t connected_ms; // TCP connected and, with TLS, handshake finished; request goes out
+    uint32_t first_rx_ms;  // first response bytes
+    uint32_t done_ms;
+    bool use_tls;
+} s_timing;
+
+static uint32_t timing_now_ms(void) { return to_ms_since_boot(get_absolute_time()); }
+#endif
+
 static rtc_time_t g_server_time = {0}; // UTC, set per-request during header parse
 static bool g_server_time_valid = false;
 
@@ -93,7 +107,6 @@ static void reset_session(http_session_t *session) {
     session->total_received = 0;
     session->last_error = ERR_OK;
     session->transfer_was_successful = false;
-    g_last_status_code = 0;
     session->completion_callback = NULL;
     session->callback_arg = NULL;
 
@@ -400,6 +413,10 @@ static err_t http_recv_callback(void *arg, struct altcp_pcb *pcb, struct pbuf *p
 
     if (p)
         dtrace("[HTTP] Received %d bytes from server\n", (int)p->tot_len);
+#if INKI_DEBUG_TIMING
+    if (p && s_timing.first_rx_ms == 0)
+        s_timing.first_rx_ms = timing_now_ms();
+#endif
 
     if (!p) {
         handle_connection_closed(session, pcb);
@@ -452,6 +469,9 @@ static err_t http_connected_callback(void *arg, struct altcp_pcb *pcb, err_t err
         return err; // lwIP fires http_error_callback; session inactive so it exits immediately
     }
 
+#if INKI_DEBUG_TIMING
+    s_timing.connected_ms = timing_now_ms();
+#endif
     dlog("[HTTP] TCP connection established successfully\n");
     if (session->use_tls) {
         dlog("[HTTP] TLS handshake will begin...\n");
@@ -555,6 +575,8 @@ static http_result_t open_connection(const ip_addr_t *server_ip, uint16_t port,
                                      const char *request_data, bool no_store, bool use_tls) {
     s_body_progress_pct = PROGRESS_PCT_UNSET;
     g_server_time_valid = false;
+    // Cleared here, not when a session ends: a caller asks for the code after a failed request.
+    g_last_status_code = 0;
     g_session.no_store_body = no_store;
     g_session.request_length = strlen(request_data);
     g_session.request_data = malloc(g_session.request_length + 1);
@@ -608,6 +630,12 @@ static http_result_t open_connection(const ip_addr_t *server_ip, uint16_t port,
     g_session.active = true;
     g_session.state = HTTP_SESSION_CONNECTING;
 
+#if INKI_DEBUG_TIMING
+    s_timing.start_ms = timing_now_ms();
+    s_timing.connected_ms = 0;
+    s_timing.first_rx_ms = 0;
+    s_timing.use_tls = use_tls;
+#endif
     dlog("[HTTP] Calling altcp_connect to %s:%u\n", ipaddr_ntoa(server_ip), (unsigned)port);
     err_t err = altcp_connect(g_session.pcb, server_ip, port, http_connected_callback);
     cyw43_arch_lwip_end();
@@ -662,6 +690,37 @@ static void http_sync_wrapper_cb(const char *body, size_t length, bool success, 
     s_sync_done = true;
 }
 
+#if INKI_DEBUG_TIMING
+static void timing_report(const char *request) {
+    s_timing.done_ms = timing_now_ms();
+
+    // Method and path only: no query string, no headers.
+    char what[48] = {0};
+    size_t n = strcspn(request, "?\r\n");
+    if (n > sizeof(what) - 1)
+        n = sizeof(what) - 1;
+    memcpy(what, request, n);
+
+    if (!s_timing.connected_ms) {
+        debug_status("INFO", "[TIMING] %s: no connection after %lu ms\n", what,
+                     (unsigned long)(s_timing.done_ms - s_timing.start_ms));
+        return;
+    }
+    uint32_t first_rx = s_timing.first_rx_ms ? s_timing.first_rx_ms : s_timing.done_ms;
+    debug_status("INFO", "[TIMING] %s: %s %lu ms, request->first byte %lu ms, rest %lu ms\n", what,
+                 s_timing.use_tls ? "TCP+TLS handshake" : "TCP connect",
+                 (unsigned long)(s_timing.connected_ms - s_timing.start_ms),
+                 (unsigned long)(first_rx - s_timing.connected_ms),
+                 (unsigned long)(s_timing.done_ms - first_rx));
+    if (s_timing.use_tls && tls_timing_verify_done_ms())
+        debug_status("INFO",
+                     "[TIMING]   %d certificates verified %lu ms after start, flags 0x%lX\n",
+                     tls_timing_chain_length(),
+                     (unsigned long)(tls_timing_verify_done_ms() - s_timing.start_ms),
+                     (unsigned long)tls_timing_verify_flags());
+}
+#endif
+
 static bool http_request_sync_impl(const ip_addr_t *server_ip, uint16_t port, const char *request,
                                    int timeout_ms, bool no_store, data_callback_fn cb,
                                    void *cb_arg) {
@@ -683,6 +742,9 @@ static bool http_request_sync_impl(const ip_addr_t *server_ip, uint16_t port, co
     }
     if (!s_sync_done)
         dlog("[HTTP] http_request_sync timeout after %d ms\n", waited);
+#if INKI_DEBUG_TIMING
+    timing_report(request);
+#endif
     return s_sync_done && s_sync_ok;
 }
 

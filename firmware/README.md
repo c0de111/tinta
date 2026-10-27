@@ -99,7 +99,7 @@ firmware updates.
 
 ```bash
 ./build.sh --seatsurfing
-./create_uf2.sh              # -> build/inki_seatsurfing.uf2
+./create_uf2.sh              # -> build/tinta_seatsurfing.uf2
 ```
 
 ### Over SWD — for development

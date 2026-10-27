@@ -194,5 +194,5 @@ void render_page_historian(uint8_t *image_buffer) {
 }
 
 void render_page_historian_placeholder(uint8_t *image_buffer) {
-    render_page_placeholder(image_buffer, "inki-historian");
+    render_page_placeholder(image_buffer, "tinta-historian");
 }

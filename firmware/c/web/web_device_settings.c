@@ -1,6 +1,7 @@
 #include "web_device_settings.h"
 #include "config.h"
 #include "use_case.h"
+#include "web_wifi.h"
 #define LOG_MODULE LOG_MOD_WEBSERVER
 #include "debug.h"
 #include "flash.h"
@@ -77,13 +78,10 @@ void build_device_config_page(char *buf, size_t sz, const char *message) {
     }
     n += snprintf(buf + n, sz - (size_t)n, "</fieldset>");
 
+    n += snprintf(buf + n, sz - (size_t)n, "<fieldset><legend>WiFi Settings</legend>");
+    n = web_wifi_credential_fields(buf, sz, n, "wifi_ssid", "wifi_password", "wifi_region");
     n +=
         snprintf(buf + n, sz - (size_t)n,
-                 "<fieldset><legend>WiFi Settings</legend>"
-                 "<label>SSID:<br>"
-                 "<input type=\"text\" name=\"wifi_ssid\" value=\"%s\"></label>"
-                 "<label>Password:<br>"
-                 "<input type=\"text\" name=\"wifi_password\" value=\"%s\"></label>"
                  "<label>Number of WiFi Attempts:<br>"
                  "<input type=\"number\" name=\"number_wifi_attempts\" value=\"%d\" min=\"1\" "
                  "max=\"50\"></label>"
@@ -97,14 +95,13 @@ void build_device_config_page(char *buf, size_t sz, const char *message) {
                  "<input type=\"number\" name=\"wifi_reconnect_minutes\" value=\"%d\" min=\"1\" "
                  "max=\"30\"></label>"
                  "</fieldset>",
-                 wifi_config_flash.ssid, wifi_config_flash.password,
                  device_config_flash.data.number_wifi_attempts,
                  device_config_flash.data.wifi_timeout, device_config_flash.data.max_wait_data_wifi,
                  device_config_flash.data.wifi_reconnect_minutes);
 
     n += snprintf(
         buf + n, sz - (size_t)n,
-        "<fieldset><legend>Telemetry (inki-monitor)</legend>"
+        "<fieldset><legend>Telemetry</legend>"
         "<label class=\"inline\"><input type=\"checkbox\" name=\"telemetry_enabled\" "
         "value=\"1\" %s> Enable telemetry</label>"
         "<label>Telemetry Host (IPv4):<br>"
@@ -345,6 +342,8 @@ void handle_form_device_config(const char *body, size_t len, char *buf, size_t s
         new_wifi.password[sizeof(new_wifi.password) - 1] = '\0';
     }
 
+    new_wifi.region = (uint8_t)result.wifi_region; // checked in save_wifi_config
+    new_wifi.region_check = new_wifi.region ^ WIFI_REGION_CHECK;
     bool ok_wifi = save_wifi_config(&new_wifi);
     bool ok_dev = save_device_config(&new_cfg);
 

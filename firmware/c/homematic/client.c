@@ -77,6 +77,7 @@ void summarize_addr(const char *full, char *out, size_t n) {
 
 // --- HTTP response callback ---
 
+// cppcheck-suppress constParameterPointer
 static void homematic_data_received(const char *body, size_t length, void *arg) {
     // If arg is a valid index (sequential single-call mode), only update that index
     if ((uintptr_t)arg < HOMEMATIC_MAX_ITEMS) {
@@ -361,6 +362,7 @@ static bool homematic_issue_single(uint8_t idx);
 static bool homematic_issue_unit(uint8_t idx);
 static bool homematic_issue_service(void);
 
+// cppcheck-suppress constParameterCallback
 static void homematic_single_completion(const char *body, size_t length, bool success, void *arg) {
     uint8_t idx = (uint8_t)(uintptr_t)arg;
 
@@ -551,7 +553,9 @@ static bool hm_wait_step(int timeout_ms) {
     return ok;
 }
 
-static run_result_t hm_run(void) {
+static run_result_t hm_run(int page, int input) {
+    (void)page;
+    (void)input;
     s_last_run_error = RUN_OK;
     memset(&g_hm_seq, 0, sizeof(g_hm_seq));
     for (uint8_t i = 0;
@@ -733,7 +737,7 @@ static int homematic_build_http_post(char *out, size_t n, const char *host, cons
                     "Host: %s\r\n"
                     "Content-Type: text/xml\r\n"
                     "Accept: text/xml\r\n"
-                    "User-Agent: inki/0.11\r\n"
+                    "User-Agent: Tinta/homematic\r\n"
                     "Connection: close\r\n"
                     "Content-Length: %d\r\n"
                     "\r\n"

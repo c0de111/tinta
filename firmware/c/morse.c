@@ -131,7 +131,7 @@ static void encode_text(const char *text, char *out, size_t out_len) {
 }
 
 void morse_init(void) {
-    morse_set_message("INKI");
+    morse_set_message("TINTA");
     g_enabled = true;
     g_unit_ms = LED_MORSE_UNIT_MS;
     g_idx = 0;
@@ -148,7 +148,7 @@ void morse_set_unit_ms(int unit_ms) {
 
 void morse_set_message(const char *text) {
     if (!text || !*text)
-        text = "INKI";
+        text = "TINTA";
     encode_text(text, g_seq, sizeof(g_seq));
     g_idx = 0;
     g_phase = 0;

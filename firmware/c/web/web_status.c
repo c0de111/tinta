@@ -79,6 +79,9 @@ void build_device_status_page(char *buf, size_t sz) {
     case USE_CASE_ID_WEATHERMAP:
         use_case_slug = "weathermap";
         break;
+    case USE_CASE_ID_NEXTCLOUD:
+        use_case_slug = "nextcloud";
+        break;
     case USE_CASE_ID_NEW_USECASE:
         use_case_slug = "newusecase";
         break;
@@ -86,7 +89,7 @@ void build_device_status_page(char *buf, size_t sz) {
         break;
     }
     char device_type_label[32];
-    snprintf(device_type_label, sizeof(device_type_label), "inki-%s", use_case_slug);
+    snprintf(device_type_label, sizeof(device_type_label), "tinta-%s", use_case_slug);
 
     char bmp581_addr_str[8] = "0x47/46";
     char rtc_temp_row[96] = "";

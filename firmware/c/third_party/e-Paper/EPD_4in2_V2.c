@@ -30,6 +30,9 @@
 ******************************************************************************/
 #include "EPD_4in2_V2.h"
 #include "Debug.h"
+#include "pico/time.h"
+#define LOG_MODULE LOG_MOD_EPAPER
+#include "debug.h"
 
 const unsigned char LUT_ALL[233]={							
 0x01,	0x0A,	0x1B,	0x0F,	0x03,	0x01,	0x01,	
@@ -121,6 +124,37 @@ void EPD_4IN2_V2_ReadBusy(void)
     Debug("e-Paper busy release\r\n");
 }
 
+// A refresh must be seen to start before its end can be trusted: polling BUSY
+// right after 0x20 can read LOW before the controller raises it, and the caller
+// then sends deep sleep and cuts power mid-waveform (grey spots after power-off).
+#define EPD_4IN2_V2_BUSY_RISE_MS     100
+#define EPD_4IN2_V2_REFRESH_MAX_MS   10000
+#define EPD_4IN2_V2_FALLBACK_MS      4000
+
+static void EPD_4IN2_V2_WaitRefresh(const char *mode)
+{
+    absolute_time_t t0 = get_absolute_time();
+
+    while (DEV_Digital_Read(EPD_BUSY_PIN) == 0) {
+        if (absolute_time_diff_us(t0, get_absolute_time()) > EPD_4IN2_V2_BUSY_RISE_MS * 1000) {
+            debug_status("WARN", "ePaper %s refresh: BUSY never rose, waiting %d ms\n", mode,
+                         EPD_4IN2_V2_FALLBACK_MS);
+            DEV_Delay_ms(EPD_4IN2_V2_FALLBACK_MS);
+            return;
+        }
+    }
+    while (DEV_Digital_Read(EPD_BUSY_PIN) == 1) {
+        if (absolute_time_diff_us(t0, get_absolute_time()) > EPD_4IN2_V2_REFRESH_MAX_MS * 1000) {
+            debug_status("WARN", "ePaper %s refresh: BUSY stuck high after %d ms\n", mode,
+                         EPD_4IN2_V2_REFRESH_MAX_MS);
+            return;
+        }
+        DEV_Delay_ms(10);
+    }
+    dlog("[EPD] %s refresh took %lld ms\n", mode,
+         absolute_time_diff_us(t0, get_absolute_time()) / 1000);
+}
+
 /******************************************************************************
 function :	Turn On Display
 parameter:
@@ -130,7 +164,7 @@ static void EPD_4IN2_V2_TurnOnDisplay(void)
     EPD_4IN2_V2_SendCommand(0x22);
 	EPD_4IN2_V2_SendData(0xF7);
     EPD_4IN2_V2_SendCommand(0x20);
-    EPD_4IN2_V2_ReadBusy();
+    EPD_4IN2_V2_WaitRefresh("full");
 }
 
 static void EPD_4IN2_V2_TurnOnDisplay_Fast(void)
@@ -138,7 +172,7 @@ static void EPD_4IN2_V2_TurnOnDisplay_Fast(void)
     EPD_4IN2_V2_SendCommand(0x22);
 	EPD_4IN2_V2_SendData(0xC7);
     EPD_4IN2_V2_SendCommand(0x20);
-    EPD_4IN2_V2_ReadBusy();
+    EPD_4IN2_V2_WaitRefresh("fast");
 }
 
 static void EPD_4IN2_V2_TurnOnDisplay_Partial(void)
@@ -146,7 +180,7 @@ static void EPD_4IN2_V2_TurnOnDisplay_Partial(void)
     EPD_4IN2_V2_SendCommand(0x22);
 	EPD_4IN2_V2_SendData(0xFF);
     EPD_4IN2_V2_SendCommand(0x20);
-    EPD_4IN2_V2_ReadBusy();
+    EPD_4IN2_V2_WaitRefresh("partial");
 }
 
 static void EPD_4IN2_V2_TurnOnDisplay_4Gray(void)
@@ -154,7 +188,7 @@ static void EPD_4IN2_V2_TurnOnDisplay_4Gray(void)
     EPD_4IN2_V2_SendCommand(0x22);
 	EPD_4IN2_V2_SendData(0xCF);
     EPD_4IN2_V2_SendCommand(0x20);
-    EPD_4IN2_V2_ReadBusy();
+    EPD_4IN2_V2_WaitRefresh("4gray");
 }
 
 /******************************************************************************

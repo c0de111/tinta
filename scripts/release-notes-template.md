@@ -11,16 +11,16 @@ Quick-start UF2s: prebuilt images to preview setup and the web interface on a ba
 
 ## Assets
 
-- `inki_seatsurfing.uf2`: SeatSurfing room booking display.
-- `inki_historian.uf2`: CCU-Historian time-series visualization.
-- `inki_homematic.uf2`: Homematic home automation display.
+- `tinta_seatsurfing.uf2`: SeatSurfing room booking display.
+- `tinta_historian.uf2`: CCU-Historian time-series visualization.
+- `tinta_homematic.uf2`: Homematic home automation display.
 - Source code archives (`zip`, `tar.gz`).
 
 ## Quick Start
 
 1. Hold BOOTSEL while plugging in Pico W → `RPI-RP2` drive appears.
-2. Copy one UF2 (`inki_seatsurfing`, `inki_historian`, or `inki_homematic`) → board reboots automatically.
-3. Connect to AP `inki-setup` (password `12345678`) → open `http://192.168.4.1`.
+2. Copy one UF2 (`tinta_seatsurfing`, `tinta_historian`, or `tinta_homematic`) → board reboots automatically.
+3. Connect to AP `Tinta-XXXX` → open `http://192.168.4.1`. The password is shown on the display, or on a bare Pico W in the USB serial log (`AP active: SSID=… password=…`).
 4. Configure Wi-Fi, use-case settings, and optional logo via the browser.
 
 ## Hardware For Full Functionality

@@ -3,6 +3,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// INKI_DEBUG_TIMING only: when the last connection's certificate chain was verified (ms since
+// boot, 0 = not yet), how many certificates it had, and mbedTLS' verification flags (0 = valid).
+uint32_t tls_timing_verify_done_ms(void);
+int tls_timing_chain_length(void);
+uint32_t tls_timing_verify_flags(void);
+
 struct altcp_tls_config;
 struct altcp_pcb;
 

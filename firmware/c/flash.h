@@ -62,6 +62,17 @@ _Static_assert(FIRMWARE_MAGIC_LEN == 13, "FIRMWARE_MAGIC_LEN mismatch");
     (CONFIG_FLASH_OFFSET + 0x2000) // 0x1E9000 - Device and UI configuration
 #define device_config_flash (*(const device_config_t *)FLASH_PTR(DEVICE_CONFIG_FLASH_OFFSET))
 
+// Last access point that worked, as a hint for the next join. A sector of its own, so that
+// rewriting it can never cost the credentials; above the weathermap image (ends 0x1FD000).
+#define WIFI_HINT_FLASH_OFFSET (CONFIG_FLASH_OFFSET + 0x16000) // 0x1FD000
+
+// WPA2 key derived from SSID and passphrase, so that it is computed once and not on every
+// wake. Only in builds with INKI_EXP_WIFI_PMK.
+#define WIFI_PMK_FLASH_OFFSET (CONFIG_FLASH_OFFSET + 0x17000) // 0x1FE000
+
+// Page that stays on the panel between scheduled wakes. The last sector of a 2 MB flash.
+#define RESIDENT_PAGE_FLASH_OFFSET (CONFIG_FLASH_OFFSET + 0x18000) // 0x1FF000
+
 // Logo storage block (8 KB = 2 flash sectors)
 #define LOGO_FLASH_OFFSET (CONFIG_FLASH_OFFSET + 0x3000) // 0x1EA000 - Uploadable logo binary
 #define LOGO_FLASH_SIZE                                                                            \
@@ -128,6 +139,9 @@ typedef struct {
     firmware_header_t header; // copy of header read back from flash
 } flash_ota_result_t;
 
+// Bytes to erase for an image of image_size; 0 if it does not fit a slot.
+size_t flash_ota_erase_length(size_t image_size);
+
 // Initialise state; does NOT erase flash.
 void flash_ota_begin(uint32_t slot_offset, size_t erase_length);
 
@@ -147,6 +161,38 @@ uint32_t calc_crc32(const void *data, size_t len);
 
 /* Wi-Fi config */
 bool save_wifi_config(const wifi_config_t *in);
+
+/* Wi-Fi join hint: BSSID and channel of the last access point, valid for the stored SSID only */
+// The access point of the last join and the address of its lease (ip all zero if unknown).
+bool load_wifi_hint(uint8_t bssid[6], uint8_t *channel, uint8_t ip[4]);
+void save_wifi_hint(const uint8_t bssid[6], uint8_t channel, const uint8_t ip[4]);
+void clear_wifi_hint(void);
+
+// Failed Wi-Fi joins in a row, kept with the hint (learned state; written only when it
+// changes). A new hint after a successful join sets it back to 0, as does clear_wifi_hint().
+#define WIFI_FAILURES_MAX 250
+int load_wifi_failures(void);
+void save_wifi_failures(int n);
+
+/* Resident page: the page a scheduled wake redraws (see page_def_t.stays), kept across
+ * power-off. load returns -1 if none is stored. save writes only if the page differs. */
+int load_resident_page(void);
+void save_resident_page(int page);
+
+#if INKI_EXP_WIFI_PMK
+/* Stored WPA2 key (PMK), valid only for the SSID and passphrase it was derived from */
+typedef enum {
+    WIFI_PMK_NONE,     // nothing stored for the current credentials
+    WIFI_PMK_VALID,    // pmk filled in
+    WIFI_PMK_REJECTED, // this network refused the key on several wakes: use the passphrase
+} wifi_pmk_state_t;
+// A strike is a wake in which the key was refused and the passphrase then worked. One alone
+// proves nothing (access points also refuse a correct key now and then), so the key counts
+// as rejected only after WIFI_PMK_MAX_STRIKES of them in a row.
+#define WIFI_PMK_MAX_STRIKES 3
+wifi_pmk_state_t load_wifi_pmk(uint8_t pmk[32], uint32_t *strikes);
+void save_wifi_pmk(const uint8_t pmk[32], uint32_t strikes);
+#endif
 
 /* Device config */
 bool save_device_config(const device_config_t *in);

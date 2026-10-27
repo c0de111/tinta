@@ -913,7 +913,7 @@
 		(property ki_fp_filters "Connector*:*_1x??_*")
 		(path "/b44051d0-0deb-41ab-bb15-459b91be0a3b")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr through_hole)
 		(fp_line
 			(start -1.38 -1.38)
@@ -1289,7 +1289,7 @@
 		)
 		(path "/43552e76-bc61-428d-a09c-984e8e0d9888")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -10.61 -23.07)
@@ -3594,7 +3594,7 @@
 		)
 		(path "/12b24870-8f5f-4f87-9321-be357d77d3a1")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start 4.9 -4.4)
@@ -4262,7 +4262,7 @@
 		(property ki_fp_filters "Connector*:*_1x??_*")
 		(path "/4995cc43-3fbe-412d-93ff-aa9b703b1ef9")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr through_hole)
 		(fp_line
 			(start 1.38 1.27)
@@ -4521,7 +4521,7 @@
 		(property ki_fp_filters "Connector*:*_1x??_*")
 		(path "/9d0a70e1-8d54-483d-a330-7ed0e12debf3")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr through_hole)
 		(fp_line
 			(start -1.38 -1.38)
@@ -4719,7 +4719,7 @@
 			)
 		)
 	)
-	(footprint "inki:BMP581"
+	(footprint "Tinta:BMP581"
 		(layer "B.Cu")
 		(uuid "0218c0e7-ed84-4355-a5aa-c5daf86c963f")
 		(at 32.2 50.7375 180)
@@ -5110,7 +5110,7 @@
 			)
 		)
 		(embedded_fonts no)
-		(model "${KICAD8_3DMODEL_DIR}/Package_LGA.3dshapes/Bosch_LGA-8_2x2.5mm_P0.65mm_ClockwisePinNumbering.wrl"
+		(model "${KICAD9_3DMODEL_DIR}/Package_LGA.3dshapes/Bosch_LGA-8_2x2.5mm_P0.65mm_ClockwisePinNumbering.step"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -5591,7 +5591,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/cca8e551-5ebb-47d2-93e8-1519d12b4c28")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 0.735)
@@ -6709,7 +6709,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/d79b054b-0a57-4b4d-bc58-f7af5689464e")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -6915,7 +6915,7 @@
 		(property ki_fp_filters "SOT?23*")
 		(path "/bf768fb4-b4c3-4eae-9cac-b133bf56868a")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start 0.76 1.58)
@@ -7186,7 +7186,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/8bf39282-bbad-47dc-a67b-373eb2909805")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 0.735)
@@ -7950,7 +7950,7 @@
 		(property ki_fp_filters "SOT?23*")
 		(path "/d33598a1-0e29-4370-b8d9-534356ce0943")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start 0 -1.56)
@@ -8569,7 +8569,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/c097329b-8148-4f5c-8f4e-859059795eb3")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -8775,7 +8775,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/747bc8a0-a77d-4d2e-94ad-253c693a5e89")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -8982,7 +8982,7 @@
 		(property ki_fp_filters "D*SOD?323F*")
 		(path "/c19c61e1-9cf5-40bd-9bec-708ea3ed1f95")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -2.01 -0.85)
@@ -9487,6 +9487,17 @@
 			(uuid "9cdb38d6-641b-4cd8-b152-a8386ef09a7c")
 		)
 		(embedded_fonts no)
+		(model "${KICAD9_3DMODEL_DIR}/Package_SO.3dshapes/SOIC-8_3.9x4.9mm_P1.27mm.step"
+			(offset
+				(xyz 0 0 0)
+			)
+			(scale
+				(xyz 1 1 1)
+			)
+			(rotate
+				(xyz 0 0 0)
+			)
+		)
 	)
 	(footprint "Capacitor_SMD:C_0805_2012Metric"
 		(layer "B.Cu")
@@ -10033,7 +10044,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/3e039d6d-fe45-4f3c-9e86-9cf785c1f385")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -10237,7 +10248,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/ee2679dc-91e5-4486-9e29-8d55b77fa0e9")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -11130,7 +11141,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/776f52c2-4609-4552-9ce6-576048a25af1")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -11541,7 +11552,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/eabf951e-7e22-462c-8e3f-e1468aae806a")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 0.735)
@@ -11747,7 +11758,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/a53c3bfe-a82b-4611-8e2e-d86a0960e147")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.261252 -0.735)
@@ -11981,7 +11992,7 @@
 		(property ki_fp_filters "D*SOD?323*")
 		(path "/25e1ca5f-3389-465d-aa4c-c25513289703")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -2.01 -0.85)
@@ -12259,7 +12270,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/ea56928d-e17d-4983-8789-da33a620b159")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 0.735)
@@ -12464,7 +12475,7 @@
 		(property ki_fp_filters "C_*")
 		(path "/d534e6ee-2aa9-42d8-93f3-a9621352a45c")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.261252 -0.735)
@@ -13077,7 +13088,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/4fef1d23-0991-4865-a447-e7bfd4703ab4")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 0.735)
@@ -13560,7 +13571,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/4283a388-713d-462c-899c-5964744b6b17")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -13971,7 +13982,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/1290d32f-16d0-49d1-98a3-6ce91995b3b0")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -14178,7 +14189,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/81accd71-6878-41fe-aa40-b451afe0b239")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -14382,7 +14393,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/535433c4-ef0a-4977-873a-8e6075b287c3")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 0.735)
@@ -14588,7 +14599,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/a110274e-6c24-4e7d-aa57-121c920f59c3")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)
@@ -14999,7 +15010,7 @@
 		(property ki_fp_filters "SOT?23*")
 		(path "/a60db2d0-755b-4011-97b0-1a317d0caf7d")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.04 1.58)
@@ -15546,7 +15557,7 @@
 		(property ki_fp_filters "SOT?23*")
 		(path "/978fa8d7-0723-4a0f-b55b-cf08750a72e7")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start 0 -1.56)
@@ -16298,7 +16309,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/c1999671-d01f-4cb3-9d86-53e0326681cc")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 0.735)
@@ -16505,7 +16516,7 @@
 		(property ki_fp_filters "R_*")
 		(path "/c4b9faa0-b9ed-44a0-bb40-7452b768aba1")
 		(sheetname "/")
-		(sheetfile "inki_l2.kicad_sch")
+		(sheetfile "tinta_l2.kicad_sch")
 		(attr smd)
 		(fp_line
 			(start -0.227064 -0.735)

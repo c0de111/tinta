@@ -55,8 +55,13 @@ void power_hold(void) {
     ext_led_on();
 }
 
+void power_watchdog_start(void) {
+    watchdog_enable(device_config_flash.data.watchdog_time, 0);
+    debug_status("OK", "Watchdog enabled (%d ms)\n", device_config_flash.data.watchdog_time);
+}
+
 static void power_shutdown(int page) {
-    rtc_set_alarm(page);
+    rtc_set_alarm(page, 0);
     release_gate();
     halt();
 }

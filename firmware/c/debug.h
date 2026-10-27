@@ -1,6 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #define DEBUG_BUFFER_SIZE 8192
@@ -42,6 +43,7 @@ typedef enum {
     LOG_MOD_MONITOR = (1 << 16),
     LOG_MOD_PNG = (1 << 17),
     LOG_MOD_MORSE = (1 << 18),
+    LOG_MOD_NEXTCLOUD = (1 << 20), // 19 is LOG_MOD_ROOMVOX on feature/roomvox
     LOG_MOD_ALL = 0x7FFFFFFF,
 } log_module_t;
 
@@ -74,6 +76,9 @@ void debug_module_log(uint32_t module, log_level_t level, const char *format,
 
 // Flush buffered logs to USB serial
 void debug_flush(void);
+// What has been logged since the last flush, in DEBUG_BUFFERED or DEBUG_BOTH mode.
+// Not terminated at *len; valid until the next log call.
+const char *debug_buffer_peek(size_t *len);
 
 // Poll until USB is connected or timeout_ms elapses; returns true if connected.
 #if INKI_DEBUG_USB_WAIT
